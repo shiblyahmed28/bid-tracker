@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.contrib.auth.forms import UserChangeForm, UserCreationForm
 
-from .models import User
+from .models import User, UserSession
 
 
 class UserCreationAdminForm(UserCreationForm):
@@ -69,3 +69,14 @@ class UserAdmin(DjangoUserAdmin):
         ),
     )
     readonly_fields = ("last_login", "date_joined")
+
+
+@admin.register(UserSession)
+class UserSessionAdmin(admin.ModelAdmin):
+    list_display = ("user", "device_type", "browser", "os", "ip", "created_at", "last_seen_at", "revoked_at")
+    list_filter = ("device_type",)
+    search_fields = ("user__email", "ip", "user_agent")
+    readonly_fields = [f.name for f in UserSession._meta.fields]
+
+    def has_add_permission(self, request):
+        return False

@@ -34,7 +34,21 @@ def admin_user(db):
     )
 
 
-def login(api_client, user, password):
-    response = api_client.post("/api/v1/auth/login/", {"email": user.email, "password": password})
+DESKTOP_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/120.0.0.0 Safari/537.36"
+)
+MOBILE_UA = (
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+)
+
+
+def login(api_client, user, password, user_agent=DESKTOP_UA):
+    response = api_client.post(
+        "/api/v1/auth/login/",
+        {"email": user.email, "password": password},
+        HTTP_USER_AGENT=user_agent,
+    )
     api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
     return response

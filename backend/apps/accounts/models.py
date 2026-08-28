@@ -1,5 +1,7 @@
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
 
 from .managers import UserManager
 from .validators import email_domain_validator
@@ -43,3 +45,45 @@ class User(AbstractUser):
     @property
     def is_editor_or_above(self):
         return self.role in (self.Role.ADMIN, self.Role.EDITOR)
+
+
+class UserSession(models.Model):
+    """One row per login. `refresh_jti` tracks the *currently* valid refresh
+    token for this session — it is updated on every rotation so revocation
+    (which blacklists by jti) actually stops the live token, not a stale one.
+    """
+
+    class DeviceType(models.TextChoices):
+        DESKTOP = "desktop", "Desktop"
+        MOBILE = "mobile", "Mobile"
+        TABLET = "tablet", "Tablet"
+        UNKNOWN = "unknown", "Unknown"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sessions"
+    )
+    refresh_jti = models.CharField(max_length=64, unique=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    device_type = models.CharField(
+        max_length=10, choices=DeviceType.choices, default=DeviceType.UNKNOWN
+    )
+    device_brand = models.CharField(max_length=100, blank=True)
+    os = models.CharField(max_length=100, blank=True)
+    browser = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_seen_at = models.DateTimeField(auto_now_add=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user.email} · {self.device_type} · {self.browser}"
+
+    @property
+    def is_active(self):
+        if self.revoked_at is not None:
+            return False
+        lifetime = settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"]
+        return timezone.now() < self.last_seen_at + lifetime
