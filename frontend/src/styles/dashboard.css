@@ -391,6 +391,14 @@ tbody tr:last-child td {
   background: #f0f1ee;
   color: #6c7268;
 }
+.t-sub {
+  background: #e7f0f9;
+  color: #2c5a86;
+}
+.t-unk {
+  background: #eceff5;
+  color: #545b73;
+}
 
 /* ---------- EMPTY / SKELETON ---------- */
 .empty {

@@ -157,6 +157,7 @@ class Bid(models.Model):
     locally_overridden = models.JSONField(default=list, blank=True)
     missing_from_sheet = models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
+    deadline_alert_sent_at = models.DateTimeField(null=True, blank=True)
 
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="created_bids"
@@ -230,6 +231,10 @@ class Bid(models.Model):
             old_value=describe(old_value),
             new_value=describe(value),
         )
+
+        from apps.notifications.services import notify_field_change
+
+        notify_field_change(self, field, describe(old_value), describe(value), actor)
 
 
 class BidNote(models.Model):

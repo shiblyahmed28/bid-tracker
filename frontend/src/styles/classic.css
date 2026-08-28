@@ -1,0 +1,8 @@
+/* Classic view's indigo accent (§19) — scoped to this one route only by
+ * redefining the tokens components already consume via var(), rather than
+ * duplicating every component's CSS with hardcoded indigo values. */
+.classic-scope {
+  --deep: #6c63ff;
+  --mid: #8f88ff;
+  --lime: #b9b0f0;
+}

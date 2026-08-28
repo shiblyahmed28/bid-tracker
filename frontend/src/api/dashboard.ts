@@ -113,6 +113,13 @@ export function fetchSummary(params: RangeParams) {
   return api.get<DashboardSummary>("/dashboard/summary/", { params }).then((r) => r.data);
 }
 
+/** Classic view's own summary endpoint (§17) — same shape as /dashboard/summary/
+ * today, called separately (not aliased to fetchSummary) so the two pages stay
+ * independent if the backend ever diverges them. */
+export function fetchClassicSummary(params: RangeParams) {
+  return api.get<DashboardSummary>("/dashboard/classic/", { params }).then((r) => r.data);
+}
+
 export function fetchTrend(params: RangeParams) {
   return api.get<TrendResponse>("/dashboard/trend/", { params }).then((r) => r.data);
 }

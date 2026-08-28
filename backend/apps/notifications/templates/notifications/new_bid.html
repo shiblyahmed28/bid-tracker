@@ -1,0 +1,7 @@
+{% extends "notifications/_base.html" %}
+{% block content %}
+<h2 style="margin:0 0 12px;font-size:16px;">New bid: {{ bid.client.name }}</h2>
+<p style="margin:0 0 8px;font-size:13.5px;line-height:1.6;">{{ bid.description|default:"—"|truncatechars:200 }}</p>
+<p style="margin:0 0 4px;font-size:13.5px;"><b>Reference:</b> {{ bid.reference }}</p>
+<p style="margin:0;font-size:13.5px;"><b>Submission:</b> {{ bid.submission_date|default:"—" }}</p>
+{% endblock %}

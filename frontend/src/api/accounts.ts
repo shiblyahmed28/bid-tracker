@@ -77,6 +77,31 @@ export function fetchUsers() {
   return api.get<AdminUser[] | { results: AdminUser[] }>("/users/").then((r) => unwrap(r.data));
 }
 
+export interface CreateUserPayload {
+  full_name: string;
+  phone?: string;
+  email: string;
+  role: Role;
+  password: string;
+  must_change_password: boolean;
+}
+
+export function createUser(payload: CreateUserPayload) {
+  return api.post<AdminUser>("/users/", payload).then((r) => r.data);
+}
+
+export interface UpdateUserPayload {
+  full_name?: string;
+  phone?: string;
+  email?: string;
+  role?: Role;
+  is_active?: boolean;
+}
+
+export function updateUser(userId: number, payload: UpdateUserPayload) {
+  return api.patch<AdminUser>(`/users/${userId}/`, payload).then((r) => r.data);
+}
+
 export interface AdminResetPasswordPayload {
   new_password: string;
   confirm_password: string;

@@ -1,0 +1,8 @@
+New bid: {{ bid.client.name }}
+
+{{ bid.description|default:"—" }}
+
+Reference: {{ bid.reference }}
+Submission: {{ bid.submission_date|default:"—" }}
+
+Manage your notification settings: {{ unsubscribe_url }}

@@ -14,6 +14,7 @@ import { BidDetailPage } from "./pages/BidDetailPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SessionsPage } from "./pages/SessionsPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { NotFoundPage } from "./pages/NotFoundPage";
 import { SyncHistoryPage } from "./pages/admin/SyncHistoryPage";
 import { AuditLogPage } from "./pages/admin/AuditLogPage";
 import { UsersPage } from "./pages/admin/UsersPage";
@@ -47,10 +48,10 @@ function App() {
                   <Route path="/admin/audit" element={<AuditLogPage />} />
                   <Route path="/admin/users" element={<UsersPage />} />
                 </Route>
+
+                <Route path="*" element={<NotFoundPage />} />
               </Route>
             </Route>
-
-            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ToastProvider>
       </AuthProvider>

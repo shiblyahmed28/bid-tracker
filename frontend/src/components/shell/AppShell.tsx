@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 
+import { ErrorBoundary } from "../ErrorBoundary";
 import { useEscapeKey } from "../../lib/useEscapeKey";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
@@ -21,7 +22,9 @@ export function AppShell() {
       <div className="app-main">
         <Topbar onOpenDrawer={() => setDrawerOpen(true)} />
         <div className="wrap">
-          <Outlet />
+          <ErrorBoundary key={location.pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </div>
       </div>
     </>

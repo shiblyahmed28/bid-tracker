@@ -1,0 +1,5 @@
+Your digest — {{ items|length }} change{{ items|length|pluralize }}
+
+{% for item in items %}{{ item.bid.client.name }} ({{ item.bid.reference }}) — {{ item.field_name }}: {{ item.old_value|default:"—" }} -> {{ item.new_value|default:"—" }}
+{% endfor %}
+Manage your notification settings: {{ unsubscribe_url }}

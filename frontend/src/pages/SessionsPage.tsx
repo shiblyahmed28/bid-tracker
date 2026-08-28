@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import {
   fetchOwnSessions,
@@ -41,8 +42,13 @@ export function SessionsPage() {
   const { showToast } = useToast();
   const isAdmin = user?.role === "admin";
 
+  const [searchParams] = useSearchParams();
+  const initialUserParam = Number(searchParams.get("user"));
+
   const [users, setUsers] = useState<AdminUser[]>([]);
-  const [filterUserId, setFilterUserId] = useState<number | null>(null); // null = self
+  const [filterUserId, setFilterUserId] = useState<number | null>(
+    isAdmin && initialUserParam ? initialUserParam : null
+  ); // null = self
   const [rows, setRows] = useState<SessionItem[] | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);

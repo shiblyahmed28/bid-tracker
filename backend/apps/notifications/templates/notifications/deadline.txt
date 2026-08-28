@@ -1,0 +1,6 @@
+Submission due in 7 days
+
+{{ bid.client.name }} — {{ bid.reference }}
+Submission date: {{ bid.submission_date }}
+
+Manage your notification settings: {{ unsubscribe_url }}

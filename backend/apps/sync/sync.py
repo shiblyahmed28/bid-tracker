@@ -10,6 +10,7 @@ from django.db import transaction
 
 from apps.audit.models import AuditEntry
 from apps.bids.models import Bid
+from apps.notifications.services import notify_new_bid, send_pending_digests
 from apps.sync.models import QuarantineRow, SyncConflict, SyncRun
 
 from . import columns
@@ -152,6 +153,10 @@ def run_sync(trigger, actor=None, dry_run=False):
                     action=AuditEntry.Action.BID_CREATE,
                     bid=new_bid,
                 )
+                if not dry_run:
+                    # Real SMTP sends aren't rolled back with the transaction —
+                    # never let a dry run's immediate new-bid email escape.
+                    notify_new_bid(new_bid)
                 continue
 
             bid.missing_from_sheet = False
@@ -202,5 +207,11 @@ def run_sync(trigger, actor=None, dry_run=False):
 
         if dry_run:
             transaction.set_rollback(True)
+
+    if not dry_run:
+        # Outside the transaction: only ever runs against a sync that actually
+        # committed, and never sends real email for a dry run's rolled-back
+        # PendingDigestItem rows (§9 step 7).
+        send_pending_digests()
 
     return sync_run, dict(counts)

@@ -185,6 +185,10 @@ class BidViewSet(viewsets.ModelViewSet):
             action=AuditEntry.Action.BID_CREATE,
             bid=bid,
         )
+
+        from apps.notifications.services import notify_new_bid
+
+        notify_new_bid(bid)
         return bid
 
     def update(self, request, *args, **kwargs):

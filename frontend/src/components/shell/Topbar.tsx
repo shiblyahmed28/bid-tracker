@@ -3,8 +3,9 @@ import { useLocation } from "react-router-dom";
 
 import { api } from "../../api/client";
 import { useAuth } from "../../auth/AuthContext";
-import { BellIcon, MenuIcon, SyncIcon } from "../../icons";
+import { MenuIcon, SyncIcon } from "../../icons";
 import { formatSyncTime } from "../../lib/formatDate";
+import { NotificationBell } from "./NotificationBell";
 import { pageMetaFor } from "./navConfig";
 
 interface TopbarProps {
@@ -20,6 +21,10 @@ export function Topbar({ onOpenDrawer }: TopbarProps) {
   const [syncing, setSyncing] = useState(false);
 
   const isAdmin = user?.role === "admin";
+
+  useEffect(() => {
+    document.title = title ? `${title} · Spectrum Bid Tracker` : "Spectrum Bid Tracker";
+  }, [title]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -73,9 +78,7 @@ export function Topbar({ onOpenDrawer }: TopbarProps) {
         </button>
       )}
 
-      <button className="bell" aria-label="Notifications">
-        <BellIcon />
-      </button>
+      <NotificationBell />
     </header>
   );
 }

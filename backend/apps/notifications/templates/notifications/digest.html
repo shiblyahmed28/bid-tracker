@@ -1,0 +1,12 @@
+{% extends "notifications/_base.html" %}
+{% block content %}
+<h2 style="margin:0 0 12px;font-size:16px;">Your digest — {{ items|length }} change{{ items|length|pluralize }}</h2>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+{% for item in items %}
+<tr><td style="padding:8px 0;border-bottom:1px solid #E2E7DE;font-size:13px;">
+  <b>{{ item.bid.client.name }}</b> ({{ item.bid.reference }}) — {{ item.field_name }}:
+  {{ item.old_value|default:"—" }} → {{ item.new_value|default:"—" }}
+</td></tr>
+{% endfor %}
+</table>
+{% endblock %}

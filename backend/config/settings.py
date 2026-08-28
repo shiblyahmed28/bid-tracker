@@ -140,6 +140,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.sync.tasks.sync_sheet_task",
         "schedule": crontab(hour="0,8,16", minute=0),
     },
+    "send-deadline-alerts": {
+        "task": "apps.notifications.tasks.send_deadline_alerts_task",
+        "schedule": crontab(hour=8, minute=0),
+    },
 }
 
 # Google Sheets
@@ -155,3 +159,16 @@ EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Spectrum Bid Tracker <noreply@spectrum-bd.com>")
+# No App Password configured yet → print to the console instead of trying (and
+# failing) real SMTP. Once EMAIL_HOST_USER/PASSWORD are filled in, this
+# switches to real delivery automatically — no other change needed (§16).
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND",
+    default=(
+        "django.core.mail.backends.smtp.EmailBackend"
+        if EMAIL_HOST_USER
+        else "django.core.mail.backends.console.EmailBackend"
+    ),
+)
+
+FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:5173")
