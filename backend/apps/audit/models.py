@@ -21,6 +21,14 @@ class AuditEntry(models.Model):
         PASSWORD_RESET = "password_reset", "Password reset"
         PASSWORD_CHANGE = "password_change", "Password changed"
         MANUAL_SYNC_TRIGGER = "manual_sync_trigger", "Manual sync triggered"
+        CHOICE_VALUE_RENAME = "choice_value_rename", "Choice value renamed"
+        CHOICE_VALUE_CREATE = "choice_value_create", "Choice value created"
+        CHOICE_VALUE_UPDATE = "choice_value_update", "Choice value updated"
+        CAPABILITY_GRANT = "capability_grant", "Capability granted"
+        CAPABILITY_REVOKE = "capability_revoke", "Capability revoked"
+        NOTIFICATION_POLICY_UPDATE = "notification_policy_update", "Notification policy updated"
+        DEADLINE_RULE_UPDATE = "deadline_rule_update", "Deadline reminder rule updated"
+        SETTINGS_CHANGE = "settings_change", "Master setting changed"
 
     # actor is null with actor_label="System (sync)" for automated changes.
     actor = models.ForeignKey(

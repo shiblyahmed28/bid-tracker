@@ -7,9 +7,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import IsAdmin, IsAuthenticatedViewer, IsEditorOrAbove
+from apps.accounts.permissions import IsAuthenticatedViewer
 from apps.audit.models import AuditEntry
 from apps.audit.serializers import AuditEntrySerializer
+from apps.settings_admin.capabilities import HasCapability
 from apps.sync.resolvers import resolve_client, resolve_person
 
 from .filters import BidFilter
@@ -116,10 +117,12 @@ class BidViewSet(viewsets.ModelViewSet):
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def get_permissions(self):
-        if self.action in ("create", "update", "partial_update"):
-            return [IsEditorOrAbove()]
+        if self.action == "create":
+            return [HasCapability("create_bid")()]
+        if self.action in ("update", "partial_update"):
+            return [HasCapability("edit_bid")()]
         if self.action == "destroy":
-            return [IsAdmin()]
+            return [HasCapability("delete_bid")()]
         return [IsAuthenticatedViewer()]
 
     def get_serializer_class(self):
@@ -208,10 +211,13 @@ class BidViewSet(viewsets.ModelViewSet):
 
         engaged_resources = data.pop("engaged_resources", None)
 
+        from apps.settings_admin.services import notify_policy_transition
+
         for field_name, new_value in data.items():
             current_value = getattr(instance, field_name)
             if current_value != new_value:
                 instance.apply_change(field_name, new_value, actor=self.request.user)
+                notify_policy_transition(instance, field_name, str(current_value or ""), str(new_value or ""))
 
         if engaged_resources is not None:
             current_ids = set(instance.engaged_resources.values_list("pk", flat=True))

@@ -10,10 +10,11 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.mixins import ListModelMixin
 
-from apps.accounts.permissions import IsAdmin, IsEditorOrAbove
+from apps.accounts.permissions import IsEditorOrAbove
 from apps.accounts.utils import get_client_ip, get_user_agent
 from apps.audit.models import AuditEntry
 from apps.bids.pagination import StandardPagination
+from apps.settings_admin.capabilities import HasCapability
 
 from .models import QuarantineRow, SyncConflict, SyncRun
 from .resolvers import resolve_client, resolve_person
@@ -27,9 +28,9 @@ from .sync import run_sync
 
 
 class SyncRunTriggerView(APIView):
-    """POST /sync/run/ — admin only (§9, §11)."""
+    """POST /sync/run/ — requires trigger_sync (§9, §11)."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [HasCapability("trigger_sync")]
 
     def post(self, request):
         sync_run, _counts = run_sync(trigger=SyncRun.Trigger.MANUAL, actor=request.user)
@@ -44,18 +45,18 @@ class SyncRunTriggerView(APIView):
 
 
 class SyncRunListView(generics.ListAPIView):
-    """GET /sync/runs/ — admin only (§11: "Sync history & quarantine")."""
+    """GET /sync/runs/ — requires view_sync_history (§11: "Sync history & quarantine")."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [HasCapability("view_sync_history")]
     serializer_class = SyncRunSerializer
     pagination_class = StandardPagination
     queryset = SyncRun.objects.select_related("actor").all()
 
 
 class QuarantineRowListView(generics.ListAPIView):
-    """GET /sync/quarantine/ — admin only."""
+    """GET /sync/quarantine/ — requires view_sync_history."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [HasCapability("view_sync_history")]
     serializer_class = QuarantineRowSerializer
     pagination_class = StandardPagination
     queryset = QuarantineRow.objects.select_related("sync_run").all()

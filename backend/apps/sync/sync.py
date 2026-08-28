@@ -11,6 +11,7 @@ from django.db import transaction
 from apps.audit.models import AuditEntry
 from apps.bids.models import Bid
 from apps.notifications.services import notify_new_bid, send_pending_digests
+from apps.settings_admin.services import notify_policy_transition, sync_choice_values_from_bids
 from apps.sync.models import QuarantineRow, SyncConflict, SyncRun
 
 from . import columns
@@ -185,6 +186,13 @@ def run_sync(trigger, actor=None, dry_run=False):
 
                 bid.apply_change(field_name, new_value, actor=None)
                 changed_any = True
+                if not dry_run:
+                    # Same rollback-safety reasoning as notify_new_bid above —
+                    # a dry run's policy-event email must never actually send.
+                    notify_policy_transition(
+                        bid, field_name, "" if current_value is None else str(current_value),
+                        "" if new_value is None else str(new_value),
+                    )
 
             bid.save(update_fields=["missing_from_sheet", "sheet_row"])
 
@@ -197,6 +205,11 @@ def run_sync(trigger, actor=None, dry_run=False):
             uid__in=seen_uids
         )
         vanished.update(missing_from_sheet=True)
+
+        # DB-only (no email) — safe to run unconditionally inside the
+        # transaction, a dry run's rollback undoes it along with everything
+        # else (§Phase 15A: new sheet values auto-appear in the dropdowns).
+        sync_choice_values_from_bids()
 
         sync_run.rows_read = counts["read"]
         sync_run.rows_created = counts["created"]

@@ -9,7 +9,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import IsAuthenticatedViewer
+from apps.settings_admin.capabilities import HasCapability
 
 from .export_columns import resolve_columns
 from .export_filters import describe_filters, filtered_export_queryset
@@ -47,7 +47,7 @@ class BidExportPdfView(APIView):
     Synchronous under the row threshold; otherwise kicks off a Celery task
     and returns 202 with a task_id for BidExportPdfStatusView/DownloadView."""
 
-    permission_classes = [IsAuthenticatedViewer]
+    permission_classes = [HasCapability("export_pdf")]
 
     def get(self, request):
         queryset = filtered_export_queryset(_base_queryset(), request.query_params)
@@ -71,7 +71,7 @@ class BidExportPdfStatusView(APIView):
     """GET /bids/export/pdf/status/?task_id=... — polled by the frontend
     while an async export is running."""
 
-    permission_classes = [IsAuthenticatedViewer]
+    permission_classes = [HasCapability("export_pdf")]
 
     def get(self, request):
         task_id = request.query_params.get("task_id")
@@ -85,7 +85,7 @@ class BidExportPdfDownloadView(APIView):
     """GET /bids/export/pdf/download/?task_id=... — only serves once the
     task has succeeded; the frontend calls this after status polling."""
 
-    permission_classes = [IsAuthenticatedViewer]
+    permission_classes = [HasCapability("export_pdf")]
 
     def get(self, request):
         task_id = request.query_params.get("task_id")
@@ -118,7 +118,7 @@ class BidExportCsvView(APIView):
     Always synchronous and streamed (§13 bullet 6) — CSV generation is cheap
     even for the full register, unlike WeasyPrint rendering."""
 
-    permission_classes = [IsAuthenticatedViewer]
+    permission_classes = [HasCapability("export_pdf")]
 
     def get(self, request):
         queryset = filtered_export_queryset(_base_queryset(), request.query_params)

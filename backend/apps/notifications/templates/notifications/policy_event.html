@@ -1,0 +1,6 @@
+{% extends "notifications/_base.html" %}
+{% block content %}
+<h2 style="margin:0 0 12px;font-size:16px;">{{ policy.label }}</h2>
+<p style="margin:0 0 8px;font-size:13.5px;line-height:1.6;"><b>{{ bid.client.name }}</b> — {{ bid.reference }}</p>
+<p style="margin:0;font-size:13.5px;"><b>Result:</b> {{ bid.result|default:"—" }} &nbsp; <b>Submission status:</b> {{ bid.submission_status|default:"—" }}</p>
+{% endblock %}

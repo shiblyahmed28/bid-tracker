@@ -5,8 +5,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import IsAdmin
 from apps.bids.pagination import StandardPagination
+from apps.settings_admin.capabilities import HasCapability
 
 from .filters import AuditEntryFilter
 from .models import AuditEntry
@@ -30,9 +30,9 @@ CSV_COLUMNS = [
 
 
 class AuditEntryListView(generics.ListAPIView):
-    """GET /audit/ — admin only (§11, §15)."""
+    """GET /audit/ — requires view_audit_log (§11, §15)."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [HasCapability("view_audit_log")]
     serializer_class = AuditEntrySerializer
     pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend]
@@ -41,9 +41,9 @@ class AuditEntryListView(generics.ListAPIView):
 
 
 class AuditEntryExportView(APIView):
-    """GET /audit/export/ — admin only, same filters as the list, unpaginated CSV."""
+    """GET /audit/export/ — requires view_audit_log, same filters as the list, unpaginated CSV."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [HasCapability("view_audit_log")]
 
     def get(self, request):
         queryset = AuditEntryFilter(request.query_params, queryset=QUERYSET).qs

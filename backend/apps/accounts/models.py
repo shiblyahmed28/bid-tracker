@@ -46,6 +46,13 @@ class User(AbstractUser):
     def is_editor_or_above(self):
         return self.role in (self.Role.ADMIN, self.Role.EDITOR)
 
+    def has_capability(self, capability):
+        """Named capability on top of role (§Phase 15B) — an explicit
+        UserCapability override wins, otherwise the role default applies."""
+        from apps.settings_admin.capabilities import user_has_capability
+
+        return user_has_capability(self, capability)
+
 
 class UserSession(models.Model):
     """One row per login. `refresh_jti` tracks the *currently* valid refresh

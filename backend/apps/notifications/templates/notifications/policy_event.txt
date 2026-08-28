@@ -1,0 +1,7 @@
+{{ policy.label }}
+
+{{ bid.client.name }} — {{ bid.reference }}
+Result: {{ bid.result|default:"—" }}
+Submission status: {{ bid.submission_status|default:"—" }}
+
+Manage your notification settings: {{ unsubscribe_url }}

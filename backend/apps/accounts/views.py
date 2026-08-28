@@ -14,8 +14,10 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenViewBase
 
 from apps.audit.models import AuditEntry
 
+from apps.settings_admin.capabilities import HasCapability
+
 from .models import User, UserSession
-from .permissions import IsAdmin, IsAuthenticatedViewer
+from .permissions import IsAuthenticatedViewer
 from .serializers import (
     AdminPasswordResetSerializer,
     ChangePasswordSerializer,
@@ -305,9 +307,9 @@ class SessionRevokeView(APIView):
 
 
 class UserSessionsView(generics.ListAPIView):
-    """GET /users/{id}/sessions/ — admin only (§14, §17)."""
+    """GET /users/{id}/sessions/ — requires manage_users (§14, §17)."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [HasCapability("manage_users")]
     serializer_class = UserSessionSerializer
 
     def get_queryset(self):
@@ -315,11 +317,11 @@ class UserSessionsView(generics.ListAPIView):
 
 
 class UserViewSet(viewsets.ModelViewSet):
-    """Admin-only user CRUD (§17). Nobody — including an admin — may change their own role."""
+    """User CRUD, requires manage_users (§17). Nobody — including an admin — may change their own role."""
 
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAdmin]
+    permission_classes = [HasCapability("manage_users")]
     http_method_names = ["get", "post", "patch", "head", "options"]
 
     def perform_create(self, serializer):
@@ -338,6 +340,14 @@ class UserViewSet(viewsets.ModelViewSet):
         if instance.pk == self.request.user.pk and "role" in serializer.validated_data:
             if serializer.validated_data["role"] != instance.role:
                 raise ValidationError("You cannot change your own role.")
+
+        if "role" in serializer.validated_data:
+            from apps.settings_admin.services import LastAdminError, guard_last_admin_demotion
+
+            try:
+                guard_last_admin_demotion(instance, serializer.validated_data["role"])
+            except LastAdminError as exc:
+                raise ValidationError(str(exc))
 
         old_values = {field: getattr(instance, field) for field in USER_TRACKED_FIELDS}
         user = serializer.save()

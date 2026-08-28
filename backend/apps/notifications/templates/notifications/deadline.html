@@ -1,6 +1,6 @@
 {% extends "notifications/_base.html" %}
 {% block content %}
-<h2 style="margin:0 0 12px;font-size:16px;color:#D89B2C;">Submission due in 7 days</h2>
+<h2 style="margin:0 0 12px;font-size:16px;color:#D89B2C;">Submission due in {{ days_before|default:7 }} days</h2>
 <p style="margin:0 0 8px;font-size:13.5px;line-height:1.6;"><b>{{ bid.client.name }}</b> — {{ bid.reference }}</p>
 <p style="margin:0;font-size:13.5px;"><b>Submission date:</b> {{ bid.submission_date }}</p>
 {% endblock %}

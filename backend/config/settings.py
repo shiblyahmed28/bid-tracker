@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "apps.sync",
     "apps.notifications",
     "apps.audit",
+    "apps.settings_admin",
 ]
 
 MIDDLEWARE = [
@@ -140,8 +141,8 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.sync.tasks.sync_sheet_task",
         "schedule": crontab(hour="0,8,16", minute=0),
     },
-    "send-deadline-alerts": {
-        "task": "apps.notifications.tasks.send_deadline_alerts_task",
+    "send-deadline-reminders": {
+        "task": "apps.settings_admin.tasks.send_deadline_reminders_task",
         "schedule": crontab(hour=8, minute=0),
     },
 }

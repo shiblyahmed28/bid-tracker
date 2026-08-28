@@ -370,6 +370,61 @@ cd ~/projects/spectrum-bid-tracker && claude
 **Acceptance:** App reachable on the agreed port. GRP still working. Sync runs on schedule. PDF export works in the container. Backups appear. Containers survive a reboot.
 
 ---
+## Phase 115 — Master Settings, backend
+Read CLAUDE.md, then implement Phase 15. Backend and API only — no UI yet. This is additive; do not change existing bid, sync or serial logic.
+
+A. Managed dropdown lists. Create an app settings_admin with:
+
+ChoiceList(key, label, description, is_locked) — one row per dropdown. Seed: stage, security_mode, initiation_mode, procurement_type, issuing_bank, submission_status, result, delivery_type.
+ChoiceValue(list FK, value, label, sort_order, is_active, is_default, created_by_sync, created_by FK, created_at) — unique on (list, value).
+
+Keep the Bid columns as they are. Do not convert them to foreign keys and do not migrate existing bid rows — dropdowns read from ChoiceValue, storage stays as-is.
+
+Write a data migration backfilling ChoiceValue from the distinct values already present in the bids table, so nothing currently in the database disappears from a dropdown.
+
+Add a rename_value service that, in one transaction, updates the ChoiceValue and every Bid row using the old value, and writes an audit entry. Deactivating a value hides it from new entries but never alters existing bids.
+
+In the sheet sync: when an incoming value is not in ChoiceValue, auto-create it with created_by_sync=True and flag it for admin review rather than rejecting the row. This is how new values from the sheet appear in the list automatically.
+
+Also expose the existing Client, Person and Team models through the same settings API so they are managed in the same place.
+
+B. Per-user capabilities. Roles stay as the baseline. Add named capabilities that an admin can grant or revoke on top of a role:
+
+access_master_settings, manage_users, view_audit_log, view_sync_history, trigger_sync, manage_choice_lists, manage_notification_policy, delete_bid, export_pdf, create_bid, edit_bid
+
+UserCapability(user FK, capability, granted: bool, granted_by FK, granted_at) — an explicit override.
+user.has_capability(name) resolves as: explicit override if one exists, otherwise the role default.
+Role defaults: viewer gets export_pdf; editor adds create_bid, edit_bid; admin gets everything.
+Replace the DRF permission classes with a HasCapability('name') class and apply it to every viewset. Keep the existing role classes working so nothing breaks.
+An admin cannot revoke manage_users or access_master_settings from themselves, and the last remaining admin cannot be demoted — guard both.
+Every grant and revoke writes an audit entry naming both users.
+
+C. Notification policy. Admin-controlled defaults that users may override:
+
+NotificationPolicy(event_key, label, default_in_app, default_email, applies_to_roles JSON, is_active). Seed events: result_won, result_lost, result_not_submitted, bid_created, field_changed, deadline_reminder.
+Requirement: when a bid's result becomes Won, Lost, or its submission status becomes Not Submitted, every user the policy applies to gets both an in-app notification and an email, on by default for editors and viewers.
+A user's own setting always wins over the policy default. Store per-user state as an explicit override so changing a default later only affects users who never touched it.
+DeadlineReminderRule(days_before, is_active, applies_to_roles JSON, users M2M) — seed 7, 14 and 21 days, only 7 active. Replace the hard-coded 7-day task with one that loops active rules and deduplicates per bid per rule.
+
+D. API under /api/v1/settings/, all gated on access_master_settings:
+choice-lists/, choice-lists/{key}/values/ (CRUD + reorder + rename), capabilities/, users/{id}/capabilities/, notification-policies/, deadline-rules/, plus clients/, people/, teams/.
+
+Every mutation writes an audit entry. Write tests proving: a viewer granted access_master_settings can reach the settings API but still cannot delete a bid; renaming a choice value updates existing bids; deactivating a value leaves existing bids intact; the last admin cannot be demoted.
+
+## Phase 16 — Master Settings UI
+Read CLAUDE.md, then implement Phase 16 — the Master Settings page for the Phase 15 API. Match the existing design tokens and responsive behaviour.
+
+Route /settings, nav item under Administration, visible only when has_capability('access_master_settings'). Not role-gated — capability-gated, so an admin can grant it to a specific editor or viewer.
+
+Three tabs.
+
+Lists. Left rail of managed lists (Stage, Security mode, Initiation mode, Procurement type, Issuing bank, Result, Submission status, Delivery type, Clients, People, Teams). Selecting one shows its values in a table with label, stored value, usage count (how many bids use it), active toggle and drag-to-reorder. Add value inline. Rename opens a confirmation stating how many bid records will be updated. Deactivate explains that existing bids keep the value but it disappears from new entries. Values auto-created by the sync are badged "from sheet" with a Review action.
+
+Users & permissions. User list with role selector, and a capability matrix — users as rows, capabilities as columns, each cell a tri-state: inherited from role, explicitly granted, explicitly revoked. Inherited cells show what the role gives. Changing a cell saves immediately with a toast naming the user and capability. Disable the controls that would let an admin lock themselves out.
+
+Notifications. Two sections. First, the event policy table — one row per event (Won, Lost, Not submitted, New bid, Field changed) with in-app and email toggles and a role multi-select for who gets it by default, plus a line stating users can override their own. Second, deadline reminders — 7, 14 and 21 days each with an active toggle, a role multi-select and a specific-user picker, so an admin can say "Kaji and Nazmul also get the 21-day reminder".
+
+Every change shows what it affects before saving. Responsive to 380px: tabs become a select, the capability matrix scrolls horizontally with a sticky first column.
 
 # Part 2 — Working with Claude Code
 
