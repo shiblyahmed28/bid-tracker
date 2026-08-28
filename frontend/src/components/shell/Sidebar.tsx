@@ -11,6 +11,11 @@ function meetsRole(userRole: Role, minRole?: Role) {
   return ROLE_RANK[userRole] >= ROLE_RANK[minRole];
 }
 
+function meetsCapability(userCapabilities: string[], capability?: string) {
+  if (!capability) return true;
+  return userCapabilities.includes(capability);
+}
+
 interface SidebarProps {
   open: boolean;
   onNavigate: () => void;
@@ -40,12 +45,15 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
       </div>
 
       <nav className="sidebar-nav" aria-label="Primary">
-        {NAV_GROUPS.filter((group) => meetsRole(user.role, group.minRole)).map((group) => (
-          <div key={group.label}>
-            <div className="nav-group-label">{group.label}</div>
-            {group.items
-              .filter((item) => meetsRole(user.role, item.minRole))
-              .map((item) => (
+        {NAV_GROUPS.filter((group) => meetsRole(user.role, group.minRole)).map((group) => {
+          const items = group.items.filter(
+            (item) => meetsRole(user.role, item.minRole) && meetsCapability(user.capabilities, item.capability)
+          );
+          if (items.length === 0) return null;
+          return (
+            <div key={group.label}>
+              <div className="nav-group-label">{group.label}</div>
+              {items.map((item) => (
                 <NavLink
                   key={item.to}
                   to={item.to}
@@ -56,8 +64,9 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
                   {item.label}
                 </NavLink>
               ))}
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </nav>
 
       <div className="who">

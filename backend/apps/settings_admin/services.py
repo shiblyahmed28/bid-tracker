@@ -35,7 +35,14 @@ class SelfLockoutError(Exception):
 def rename_value(choice_value, new_value, new_label, actor):
     """Renames a ChoiceValue and every Bid row currently using the old value,
     in one transaction, with an audit entry (§Phase 15A). A no-op on Bid rows
-    for `delivery_type`, which has no backing free-text column to update."""
+    for `delivery_type`, which has no backing free-text column to update.
+
+    If `new_value` collides with another ChoiceValue already in this list —
+    exactly the real-world case this feature exists for, e.g. merging
+    "AB Bank Ltd." into an existing "AB Bank Limited" — this merges into
+    that existing row and removes the now-redundant one, rather than
+    tripping the (list, value) uniqueness constraint. Returns
+    (updated_bid_count, the surviving ChoiceValue)."""
     from apps.bids.models import Bid
 
     field_name = CHOICE_LIST_FIELD_MAP.get(choice_value.list.key)
@@ -46,9 +53,21 @@ def rename_value(choice_value, new_value, new_label, actor):
         if field_name:
             updated_count = Bid.all_objects.filter(**{field_name: old_value}).update(**{field_name: new_value})
 
-        choice_value.value = new_value
-        choice_value.label = new_label
-        choice_value.save(update_fields=["value", "label"])
+        merge_target = (
+            ChoiceValue.objects.filter(list=choice_value.list, value=new_value)
+            .exclude(pk=choice_value.pk)
+            .first()
+        )
+        if merge_target:
+            merge_target.label = new_label
+            merge_target.save(update_fields=["label"])
+            choice_value.delete()
+            result_value = merge_target
+        else:
+            choice_value.value = new_value
+            choice_value.label = new_label
+            choice_value.save(update_fields=["value", "label"])
+            result_value = choice_value
 
         AuditEntry.objects.create(
             actor=actor,
@@ -59,7 +78,7 @@ def rename_value(choice_value, new_value, new_label, actor):
             new_value=new_value,
         )
 
-    return updated_count
+    return updated_count, result_value
 
 
 def sync_choice_values_from_bids():
@@ -129,6 +148,38 @@ def grant_capability(target_user, capability, granted, actor):
             new_value=f"{target_user.email} — {'granted' if granted else 'revoked'} by {actor.email}",
         )
     return override
+
+
+def clear_capability_override(target_user, capability, actor):
+    """Reverts one capability to its role default (the third state of the
+    Phase 16 capability matrix's inherited/granted/revoked cycle). Guarded
+    the same way as grant_capability: if clearing would leave the *actor's
+    own* manage_users/access_master_settings effectively off (i.e. their
+    role default for it is False), block it — clearing is just as much a
+    self-lockout risk as an explicit revoke when the role default is off."""
+    from .capabilities import role_default_capabilities
+
+    would_be_granted = capability in role_default_capabilities(target_user.role)
+    if (
+        target_user.id == actor.id
+        and capability in SELF_LOCKOUT_PROTECTED_CAPABILITIES
+        and not would_be_granted
+    ):
+        raise SelfLockoutError(f"You cannot revoke {capability} from yourself.")
+
+    with transaction.atomic():
+        deleted, _ = UserCapability.objects.filter(user=target_user, capability=capability).delete()
+        if deleted:
+            AuditEntry.objects.create(
+                actor=actor,
+                actor_label=actor.email,
+                action=AuditEntry.Action.CAPABILITY_GRANT
+                if would_be_granted
+                else AuditEntry.Action.CAPABILITY_REVOKE,
+                field=capability,
+                new_value=f"{target_user.email} — reverted to role default by {actor.email}",
+            )
+    return bool(deleted)
 
 
 def guard_last_admin_demotion(instance, new_role):

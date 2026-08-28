@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from apps.bids.models import Client, Person, Team
+
 from .capabilities import CAPABILITIES, ROLE_DEFAULT_CAPABILITIES
 from .models import (
     ChoiceList,
@@ -8,6 +10,45 @@ from .models import (
     NotificationPolicy,
     UserCapability,
 )
+
+
+class SettingsClientSerializer(serializers.ModelSerializer):
+    usage_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Client
+        fields = ["id", "name", "canonical_name", "usage_count"]
+        read_only_fields = ["id", "canonical_name", "usage_count"]
+
+    def get_usage_count(self, obj):
+        return obj.bids.count()
+
+
+class SettingsPersonSerializer(serializers.ModelSerializer):
+    usage_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Person
+        fields = ["id", "canonical_name", "aliases", "usage_count"]
+        read_only_fields = ["id", "usage_count"]
+
+    def get_usage_count(self, obj):
+        return (
+            obj.bids_as_cam.count() + obj.bids_as_sales_resource.count() + obj.bids_as_bid_manager.count()
+            + obj.engaged_bids.count()
+        )
+
+
+class SettingsTeamSerializer(serializers.ModelSerializer):
+    usage_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Team
+        fields = ["id", "name", "is_active", "usage_count"]
+        read_only_fields = ["id", "usage_count"]
+
+    def get_usage_count(self, obj):
+        return obj.bids.count()
 
 
 class ChoiceListSerializer(serializers.ModelSerializer):

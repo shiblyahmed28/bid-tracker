@@ -32,24 +32,46 @@ def test_rename_value_updates_every_bid_and_writes_audit_entry(stage_list, clien
     bid2 = Bid.objects.create(client=client_obj, stage="TENDER-TYPO", submission_date="2026-09-02")
     other = Bid.objects.create(client=client_obj, stage="EOI", submission_date="2026-09-03")
 
-    updated = rename_value(value, "TENDER", "Tender", admin_user)
+    updated, result = rename_value(value, "BRAND-NEW-NAME", "Brand New Name", admin_user)
 
     assert updated == 2
     bid1.refresh_from_db()
     bid2.refresh_from_db()
     other.refresh_from_db()
-    assert bid1.stage == "TENDER"
-    assert bid2.stage == "TENDER"
+    assert bid1.stage == "BRAND-NEW-NAME"
+    assert bid2.stage == "BRAND-NEW-NAME"
     assert other.stage == "EOI"  # untouched
 
-    value.refresh_from_db()
-    assert value.value == "TENDER"
-    assert value.label == "Tender"
+    assert result.pk == value.pk  # same row, renamed in place — no collision
+    assert result.value == "BRAND-NEW-NAME"
+    assert result.label == "Brand New Name"
 
     entry = AuditEntry.objects.filter(action=AuditEntry.Action.CHOICE_VALUE_RENAME).latest("created_at")
     assert entry.actor == admin_user
     assert entry.old_value == "TENDER-TYPO"
-    assert entry.new_value == "TENDER"
+    assert entry.new_value == "BRAND-NEW-NAME"
+
+
+@pytest.mark.django_db
+def test_rename_value_into_an_existing_value_merges_instead_of_colliding(stage_list, client_obj, admin_user):
+    """The real-world case this feature exists for: merging a near-duplicate
+    (e.g. "AB Bank Ltd." -> an existing "AB Bank Limited") must not trip the
+    (list, value) uniqueness constraint."""
+    existing = ChoiceValue.objects.create(list=stage_list, value="TENDER", label="Tender (old label)")
+    duplicate = ChoiceValue.objects.create(list=stage_list, value="TENDER-DUP", label="TENDER-DUP")
+    bid = Bid.objects.create(client=client_obj, stage="TENDER-DUP", submission_date="2026-09-01")
+
+    updated, result = rename_value(duplicate, "TENDER", "Tender", admin_user)
+
+    assert updated == 1
+    bid.refresh_from_db()
+    assert bid.stage == "TENDER"
+
+    assert result.pk == existing.pk  # merged into the pre-existing row, not renamed in place
+    assert result.value == "TENDER"
+    assert result.label == "Tender"  # label still gets updated on the surviving row
+    assert not ChoiceValue.objects.filter(pk=duplicate.pk).exists()  # redundant row removed
+    assert ChoiceValue.objects.filter(list=stage_list, value="TENDER").count() == 1  # no duplicate
 
 
 @pytest.mark.django_db
@@ -58,7 +80,7 @@ def test_rename_value_on_delivery_type_touches_no_bid_rows(client_obj, admin_use
     goods_value = delivery_list.values.get(value="goods")
     bid = Bid.objects.create(client=client_obj, is_goods=True, submission_date="2026-09-01")
 
-    updated = rename_value(goods_value, "goods", "Materials", admin_user)
+    updated, _result = rename_value(goods_value, "goods", "Materials", admin_user)
 
     assert updated == 0  # no free-text column to update
     bid.refresh_from_db()

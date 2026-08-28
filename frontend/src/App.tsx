@@ -1,6 +1,7 @@
 import { Navigate, Route, BrowserRouter as Router, Routes } from "react-router-dom";
 
 import { AuthProvider } from "./auth/AuthContext";
+import { CapabilityRoute } from "./auth/CapabilityRoute";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { RoleRoute } from "./auth/RoleRoute";
 import { AppShell } from "./components/shell/AppShell";
@@ -18,6 +19,7 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 import { SyncHistoryPage } from "./pages/admin/SyncHistoryPage";
 import { AuditLogPage } from "./pages/admin/AuditLogPage";
 import { UsersPage } from "./pages/admin/UsersPage";
+import { SettingsPage } from "./pages/admin/SettingsPage";
 
 function App() {
   return (
@@ -43,10 +45,17 @@ function App() {
                 <Route path="/sessions" element={<SessionsPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
 
-                <Route element={<RoleRoute requires="admin" />}>
+                <Route element={<CapabilityRoute requires="view_sync_history" />}>
                   <Route path="/admin/sync" element={<SyncHistoryPage />} />
+                </Route>
+                <Route element={<CapabilityRoute requires="view_audit_log" />}>
                   <Route path="/admin/audit" element={<AuditLogPage />} />
+                </Route>
+                <Route element={<CapabilityRoute requires="manage_users" />}>
                   <Route path="/admin/users" element={<UsersPage />} />
+                </Route>
+                <Route element={<CapabilityRoute requires="access_master_settings" />}>
+                  <Route path="/settings" element={<SettingsPage />} />
                 </Route>
 
                 <Route path="*" element={<NotFoundPage />} />

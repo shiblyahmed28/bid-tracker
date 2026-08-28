@@ -4,7 +4,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.audit.models import AuditEntry
-from apps.bids.serializers import ClientSerializer, PersonSerializer, TeamSerializer
 from apps.bids.models import Client, Person, Team
 
 from .capabilities import SettingsPermission
@@ -17,10 +16,13 @@ from .serializers import (
     ChoiceValueSerializer,
     DeadlineReminderRuleSerializer,
     NotificationPolicySerializer,
+    SettingsClientSerializer,
+    SettingsPersonSerializer,
+    SettingsTeamSerializer,
     UserCapabilityGrantSerializer,
     UserCapabilityOverrideSerializer,
 )
-from .services import LastAdminError, SelfLockoutError, grant_capability, rename_value
+from .services import SelfLockoutError, clear_capability_override, grant_capability, rename_value
 
 
 def _audit(request, action, **kwargs):
@@ -139,11 +141,11 @@ class ChoiceValueRenameView(APIView):
         serializer = ChoiceValueRenameSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        updated_count = rename_value(
+        updated_count, result_value = rename_value(
             choice_value, serializer.validated_data["new_value"], serializer.validated_data["new_label"], request.user
         )
         return Response(
-            {"updated_bids": updated_count, "value": ChoiceValueSerializer(choice_value).data}, status=200
+            {"updated_bids": updated_count, "value": ChoiceValueSerializer(result_value).data}, status=200
         )
 
 
@@ -225,6 +227,23 @@ class UserCapabilitiesView(APIView):
 
         return self.get(request, user_id)
 
+    def delete(self, request, user_id):
+        """Clears an explicit override, reverting to the role default — the
+        third state of the tri-state capability matrix (§Phase 16)."""
+        from apps.accounts.models import User
+
+        target = get_object_or_404(User, pk=user_id)
+        capability = request.query_params.get("capability")
+        if not capability:
+            return Response({"detail": "capability is required."}, status=400)
+
+        try:
+            clear_capability_override(target, capability, request.user)
+        except SelfLockoutError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        return self.get(request, user_id)
+
 
 class NotificationPolicyViewSet(AuditedModelViewSet):
     queryset = NotificationPolicy.objects.all()
@@ -246,20 +265,20 @@ class DeadlineReminderRuleViewSet(AuditedModelViewSet):
 
 class SettingsClientViewSet(AuditedModelViewSet):
     queryset = Client.objects.all()
-    serializer_class = ClientSerializer
+    serializer_class = SettingsClientSerializer
     permission_classes = [SettingsPermission("manage_choice_lists")]
     audit_tracked_fields = ["name"]
 
 
 class SettingsPersonViewSet(AuditedModelViewSet):
     queryset = Person.objects.all()
-    serializer_class = PersonSerializer
+    serializer_class = SettingsPersonSerializer
     permission_classes = [SettingsPermission("manage_choice_lists")]
     audit_tracked_fields = ["canonical_name"]
 
 
 class SettingsTeamViewSet(AuditedModelViewSet):
     queryset = Team.objects.all()
-    serializer_class = TeamSerializer
+    serializer_class = SettingsTeamSerializer
     permission_classes = [SettingsPermission("manage_choice_lists")]
     audit_tracked_fields = ["name", "is_active"]

@@ -4,7 +4,13 @@ from apps.accounts.models import User
 from apps.audit.models import AuditEntry
 from apps.bids.models import Bid, Client
 from apps.settings_admin.models import UserCapability
-from apps.settings_admin.services import LastAdminError, SelfLockoutError, grant_capability, guard_last_admin_demotion
+from apps.settings_admin.services import (
+    LastAdminError,
+    SelfLockoutError,
+    clear_capability_override,
+    grant_capability,
+    guard_last_admin_demotion,
+)
 
 from conftest import login
 
@@ -63,6 +69,41 @@ def test_admin_can_revoke_unprotected_capability_from_self(admin_user):
     # e.g. an admin removing their own delete_bid isn't a lockout risk.
     grant_capability(admin_user, "delete_bid", False, admin_user)
     assert admin_user.has_capability("delete_bid") is False
+
+
+@pytest.mark.django_db
+def test_clear_override_reverts_to_role_default(viewer, admin_user):
+    grant_capability(viewer, "export_pdf", False, admin_user)
+    assert viewer.has_capability("export_pdf") is False
+
+    clear_capability_override(viewer, "export_pdf", admin_user)
+    assert viewer.has_capability("export_pdf") is True  # back to viewer's role default
+
+
+@pytest.mark.django_db
+def test_clear_own_override_is_safe_when_role_default_still_grants_it(admin_user):
+    # admin's role default already includes manage_users, so an admin
+    # clearing their own override for it lands back on True — not a lockout.
+    grant_capability(admin_user, "manage_users", True, admin_user)
+    clear_capability_override(admin_user, "manage_users", admin_user)  # must not raise
+    assert admin_user.has_capability("manage_users") is True
+
+
+@pytest.mark.django_db
+def test_clear_override_blocked_for_non_admin_role_with_protected_capability(editor, admin_user):
+    grant_capability(editor, "access_master_settings", True, admin_user)
+    with pytest.raises(SelfLockoutError):
+        clear_capability_override(editor, "access_master_settings", editor)
+
+
+@pytest.mark.django_db
+def test_clear_override_via_api(api_client, viewer, admin_user):
+    grant_capability(viewer, "export_pdf", False, admin_user)
+    login(api_client, admin_user, "AdminPass123!")
+    response = api_client.delete(f"/api/v1/settings/users/{viewer.id}/capabilities/?capability=export_pdf")
+    assert response.status_code == 200
+    viewer.refresh_from_db()
+    assert viewer.has_capability("export_pdf") is True
 
 
 @pytest.mark.django_db

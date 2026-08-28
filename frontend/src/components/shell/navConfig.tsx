@@ -7,6 +7,7 @@ import {
   KeyIcon,
   ListIcon,
   PlusIcon,
+  SettingsIcon,
   ShieldIcon,
   SyncIcon,
   UserIcon,
@@ -19,6 +20,9 @@ export interface NavItem {
   label: string;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
   minRole?: Role;
+  /** Capability-gated instead of (or in addition to) role-gated — an admin
+   * can grant this to a specific editor or viewer (§Phase 16). */
+  capability?: string;
 }
 
 export interface NavGroup {
@@ -52,11 +56,11 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Administration",
-    minRole: "admin",
     items: [
-      { to: "/admin/sync", label: "Sync history", icon: SyncIcon },
-      { to: "/admin/audit", label: "Audit log", icon: ShieldIcon },
-      { to: "/admin/users", label: "Users", icon: UsersIcon },
+      { to: "/admin/sync", label: "Sync history", icon: SyncIcon, capability: "view_sync_history" },
+      { to: "/admin/audit", label: "Audit log", icon: ShieldIcon, capability: "view_audit_log" },
+      { to: "/admin/users", label: "Users", icon: UsersIcon, capability: "manage_users" },
+      { to: "/settings", label: "Master settings", icon: SettingsIcon, capability: "access_master_settings" },
     ],
   },
 ];
@@ -79,6 +83,7 @@ const PAGE_META: PageMeta[] = [
   { match: (p) => p === "/admin/sync", title: "Sync history", crumb: "Administration" },
   { match: (p) => p === "/admin/audit", title: "Audit log", crumb: "Administration" },
   { match: (p) => p === "/admin/users", title: "Users", crumb: "Administration" },
+  { match: (p) => p === "/settings", title: "Master settings", crumb: "Administration" },
 ];
 
 export function pageMetaFor(pathname: string): { title: string; crumb: string } {

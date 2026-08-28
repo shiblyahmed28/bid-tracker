@@ -8,6 +8,12 @@ from .models import User, UserSession
 
 
 class MeSerializer(serializers.ModelSerializer):
+    """`capabilities` is the caller's own effective, currently-granted
+    capability names (§Phase 15B) — enough for the frontend to gate the
+    Settings nav item / route without a second round-trip."""
+
+    capabilities = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
@@ -22,8 +28,14 @@ class MeSerializer(serializers.ModelSerializer):
             "email_digest",
             "email_deadline",
             "email_newbid",
+            "capabilities",
         ]
         read_only_fields = fields
+
+    def get_capabilities(self, obj):
+        from apps.settings_admin.capabilities import CAPABILITIES
+
+        return [c for c in CAPABILITIES if obj.has_capability(c)]
 
 
 class ProfileSerializer(serializers.ModelSerializer):

@@ -1,0 +1,150 @@
+/* ---------- TAB BAR ---------- */
+.settings-tabbar {
+  margin-bottom: 13px;
+}
+.tabbar-buttons {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.tabbar-btn {
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.tabbar-btn:hover {
+  color: var(--ink);
+}
+.tabbar-btn.active {
+  color: var(--deep);
+  border-bottom-color: var(--deep);
+}
+.tabbar-select {
+  display: none;
+  width: 100%;
+}
+
+/* ---------- LISTS TAB ---------- */
+.settings-lists {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 13px;
+  align-items: start;
+}
+.settings-rail {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--sh);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-rail-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  color: var(--ink);
+}
+.settings-rail-item:hover {
+  background: #f2f5f0;
+}
+.settings-rail-item.active {
+  background: var(--deep);
+  color: #fff;
+}
+.settings-rail-item.active .mini {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+.settings-lists-panel {
+  min-width: 0;
+}
+
+/* ---------- DRAG HANDLE ---------- */
+.drag-handle {
+  cursor: grab;
+  color: var(--muted);
+  text-align: center;
+  width: 20px;
+}
+tr[draggable="true"] {
+  cursor: grab;
+}
+
+/* ---------- CAPABILITY MATRIX ---------- */
+.matrix-table th,
+.matrix-table td {
+  white-space: nowrap;
+}
+.sticky-col {
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 2;
+  box-shadow: 1px 0 0 var(--line);
+}
+th.sticky-col {
+  z-index: 3;
+  background: #fafbf9;
+}
+.cap-cell {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 700;
+  background: #fff;
+}
+.cap-cell:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.cap-inherited {
+  color: var(--muted);
+  background: #fafbf9;
+}
+.cap-granted {
+  color: #fff;
+  background: var(--deep);
+  border-color: var(--deep);
+}
+.cap-revoked {
+  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 760px) {
+  .settings-lists {
+    grid-template-columns: 1fr;
+  }
+  .settings-rail {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  .settings-rail-item {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .tabbar-buttons {
+    display: none;
+  }
+  .tabbar-select {
+    display: block;
+  }
+}

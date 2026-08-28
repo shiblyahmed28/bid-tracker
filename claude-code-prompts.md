@@ -370,7 +370,7 @@ cd ~/projects/spectrum-bid-tracker && claude
 **Acceptance:** App reachable on the agreed port. GRP still working. Sync runs on schedule. PDF export works in the container. Backups appear. Containers survive a reboot.
 
 ---
-## Phase 115 — Master Settings, backend
+## Phase 15 — Master Settings, backend
 Read CLAUDE.md, then implement Phase 15. Backend and API only — no UI yet. This is additive; do not change existing bid, sync or serial logic.
 
 A. Managed dropdown lists. Create an app settings_admin with:

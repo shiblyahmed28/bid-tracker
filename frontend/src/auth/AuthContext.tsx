@@ -13,6 +13,7 @@ export interface AuthUser {
   must_change_password: boolean;
   notifications_muted: boolean;
   date_joined: string;
+  capabilities: string[];
 }
 
 interface AuthContextValue {
