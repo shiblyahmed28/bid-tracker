@@ -4,7 +4,9 @@ import { useLocation } from "react-router-dom";
 import { api } from "../../api/client";
 import { useAuth } from "../../auth/AuthContext";
 import { MenuIcon, SyncIcon } from "../../icons";
+import { notifyDataSynced } from "../../lib/dataSyncBus";
 import { formatSyncTime } from "../../lib/formatDate";
+import { notifyNotificationsChanged } from "../../lib/notificationBus";
 import { NotificationBell } from "./NotificationBell";
 import { pageMetaFor } from "./navConfig";
 
@@ -41,6 +43,8 @@ export function Topbar({ onOpenDrawer }: TopbarProps) {
     try {
       const response = await api.post("/sync/run/");
       setLastSync(response.data.finished_at ?? null);
+      notifyDataSynced();
+      notifyNotificationsChanged();
     } catch {
       // A failed manual sync isn't this component's to report in detail —
       // Sync history (admin) is where the real error surfaces.

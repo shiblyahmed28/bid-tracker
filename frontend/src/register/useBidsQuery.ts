@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { fetchBids, type BidListItem, type PaginatedResponse } from "../api/bids";
+import { subscribeDataSynced } from "../lib/dataSyncBus";
 
 interface UseBidsQueryParams {
   from: string;
@@ -17,7 +18,10 @@ export function useBidsQuery(params: UseBidsQueryParams) {
 
   const [data, setData] = useState<PaginatedResponse<BidListItem> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncVersion, setSyncVersion] = useState(0);
   const requestId = useRef(0);
+
+  useEffect(() => subscribeDataSynced(() => setSyncVersion((v) => v + 1)), []);
 
   useEffect(() => {
     const id = ++requestId.current;
@@ -41,7 +45,7 @@ export function useBidsQuery(params: UseBidsQueryParams) {
         setLoading(false);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [from, to, search, filtersKey, page, pageSize]);
+  }, [from, to, search, filtersKey, page, pageSize, syncVersion]);
 
   return { data, loading };
 }

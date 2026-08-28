@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import {
   fetchNotifications,
@@ -15,6 +15,7 @@ const POLL_MS = 60_000;
 const PREVIEW_COUNT = 6;
 
 export function NotificationBell() {
+  const navigate = useNavigate();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -51,6 +52,12 @@ export function NotificationBell() {
     markAllNotificationsRead().then(notifyNotificationsChanged);
   }
 
+  function handleItemClick(n: NotificationItem) {
+    if (!n.read) handleRead(n.id);
+    setOpen(false);
+    if (n.bid) navigate(`/bids/${n.bid}`);
+  }
+
   return (
     <div className="bell-wrap" ref={containerRef}>
       <button className="bell" aria-label="Notifications" onClick={() => setOpen((v) => !v)}>
@@ -76,7 +83,8 @@ export function NotificationBell() {
                 <div
                   key={n.id}
                   className={`bell-item${n.read ? "" : " unread"}`}
-                  onClick={() => !n.read && handleRead(n.id)}
+                  style={{ cursor: n.bid ? "pointer" : n.read ? "default" : "pointer" }}
+                  onClick={() => handleItemClick(n)}
                 >
                   <div className="bell-item-title">{n.title}</div>
                   <time>{formatFullDateTime(n.created_at)}</time>

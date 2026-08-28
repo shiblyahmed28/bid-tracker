@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { subscribeDataSynced } from "../lib/dataSyncBus";
 import { useDateRange } from "./DateRangeContext";
 
 interface RangeQueryResult<T> {
@@ -20,7 +21,10 @@ export function useRangeQuery<T>(
 ): RangeQueryResult<T> {
   const { from, to } = useDateRange();
   const [state, setState] = useState<RangeQueryResult<T>>({ data: null, loading: true, error: false });
+  const [syncVersion, setSyncVersion] = useState(0);
   const requestId = useRef(0);
+
+  useEffect(() => subscribeDataSynced(() => setSyncVersion((v) => v + 1)), []);
 
   useEffect(() => {
     const id = ++requestId.current;
@@ -36,7 +40,7 @@ export function useRangeQuery<T>(
         setState({ data: null, loading: false, error: true });
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [from, to, ...extraDeps]);
+  }, [from, to, syncVersion, ...extraDeps]);
 
   return state;
 }

@@ -48,8 +48,8 @@ def notify_field_change(bid, raw_field_name, old_value, new_value, actor):
             Notification(
                 user=u,
                 kind=Notification.Kind.FIELD_CHANGE,
-                title=f"{label} changed on {bid.reference}",
-                body=f"{bid.client.name}: {old_value or '—'} → {new_value or '—'}",
+                title=f"{bid.client.name} — {label}: {new_value or '—'}",
+                body=f"{bid.reference}: {old_value or '—'} → {new_value or '—'}",
                 bid=bid,
             )
             for u in users

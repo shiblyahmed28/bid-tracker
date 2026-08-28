@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import {
   fetchNotificationSettings,
@@ -23,13 +24,13 @@ const KIND_LABEL: Record<string, string> = {
 function RecentNotifications({
   notifications,
   loading,
-  onRead,
   onMarkAllRead,
+  onOpen,
 }: {
   notifications: NotificationItem[] | null;
   loading: boolean;
-  onRead: (id: number) => void;
   onMarkAllRead: () => void;
+  onOpen: (n: NotificationItem) => void;
 }) {
   const unread = notifications?.filter((n) => !n.read).length ?? 0;
 
@@ -51,7 +52,7 @@ function RecentNotifications({
         ) : (
           <ul className="tl">
             {notifications.map((n) => (
-              <li key={n.id} onClick={() => !n.read && onRead(n.id)} style={{ cursor: n.read ? "default" : "pointer" }}>
+              <li key={n.id} onClick={() => onOpen(n)} style={{ cursor: n.bid || !n.read ? "pointer" : "default" }}>
                 <div>
                   <b>{KIND_LABEL[n.kind] ?? n.kind}</b>
                   {!n.read && <span className="mini">new</span>} — {n.title}
@@ -172,6 +173,7 @@ function ColumnSubscriptions({
 }
 
 export function NotificationsPage() {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<NotificationItem[] | null>(null);
   const [notifLoading, setNotifLoading] = useState(true);
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
@@ -200,6 +202,11 @@ export function NotificationsPage() {
     markAllNotificationsRead().then(notifyNotificationsChanged);
   }
 
+  function handleOpen(n: NotificationItem) {
+    if (!n.read) handleRead(n.id);
+    if (n.bid) navigate(`/bids/${n.bid}`);
+  }
+
   function handleSettingsChange(patch: Partial<NotificationSettings>) {
     setSettings((prev) => (prev ? { ...prev, ...patch } : prev));
     updateNotificationSettings(patch);
@@ -216,8 +223,8 @@ export function NotificationsPage() {
         <RecentNotifications
           notifications={notifications}
           loading={notifLoading}
-          onRead={handleRead}
           onMarkAllRead={handleMarkAllRead}
+          onOpen={handleOpen}
         />
         <DeliveryCard settings={settings} onChange={handleSettingsChange} />
       </div>
