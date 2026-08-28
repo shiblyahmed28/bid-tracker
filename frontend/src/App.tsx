@@ -4,6 +4,7 @@ import { AuthProvider } from "./auth/AuthContext";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { RoleRoute } from "./auth/RoleRoute";
 import { AppShell } from "./components/shell/AppShell";
+import { ToastProvider } from "./components/ToastContext";
 import { LoginPage } from "./pages/LoginPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ClassicPage } from "./pages/ClassicPage";
@@ -21,35 +22,37 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
+        <ToastProvider>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
 
-          <Route element={<ProtectedRoute />}>
-            <Route element={<AppShell />}>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/classic" element={<ClassicPage />} />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AppShell />}>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/classic" element={<ClassicPage />} />
 
-              <Route path="/bids" element={<BidsPage />} />
-              <Route path="/bids/:id" element={<BidDetailPage />} />
-              <Route element={<RoleRoute requires="editor" />}>
-                <Route path="/bids/new" element={<CreateBidPage />} />
-              </Route>
+                <Route path="/bids" element={<BidsPage />} />
+                <Route path="/bids/:id" element={<BidDetailPage />} />
+                <Route element={<RoleRoute requires="editor" />}>
+                  <Route path="/bids/new" element={<CreateBidPage />} />
+                </Route>
 
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/sessions" element={<SessionsPage />} />
-              <Route path="/notifications" element={<NotificationsPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/sessions" element={<SessionsPage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
 
-              <Route element={<RoleRoute requires="admin" />}>
-                <Route path="/admin/sync" element={<SyncHistoryPage />} />
-                <Route path="/admin/audit" element={<AuditLogPage />} />
-                <Route path="/admin/users" element={<UsersPage />} />
+                <Route element={<RoleRoute requires="admin" />}>
+                  <Route path="/admin/sync" element={<SyncHistoryPage />} />
+                  <Route path="/admin/audit" element={<AuditLogPage />} />
+                  <Route path="/admin/users" element={<UsersPage />} />
+                </Route>
               </Route>
             </Route>
-          </Route>
 
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </ToastProvider>
       </AuthProvider>
     </Router>
   );

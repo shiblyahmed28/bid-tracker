@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, status, viewsets
+from rest_framework import filters, generics, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -13,9 +13,20 @@ from apps.audit.serializers import AuditEntrySerializer
 from apps.sync.resolvers import resolve_client, resolve_person
 
 from .filters import BidFilter
-from .models import Bid, Team
+from .models import Bid, Person, Team
 from .pagination import StandardPagination
-from .serializers import BidDetailSerializer, BidListSerializer, BidWriteSerializer
+from .serializers import BidDetailSerializer, BidListSerializer, BidWriteSerializer, PersonSerializer
+
+
+class PersonListView(generics.ListAPIView):
+    """GET /people/ — the full roster for the engaged_resources multi-select
+    (§7, §11 create/edit form) and similar person pickers. Unpaginated —
+    there are only a few dozen real rows, comfortably one response."""
+
+    permission_classes = [IsAuthenticatedViewer]
+    serializer_class = PersonSerializer
+    pagination_class = None
+    queryset = Person.objects.order_by("canonical_name")
 
 SELECT_RELATED = ("client", "cam", "sales_resource", "bid_manager", "team", "created_by", "updated_by")
 PREFETCH_RELATED = ("engaged_resources",)
