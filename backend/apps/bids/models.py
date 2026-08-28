@@ -2,8 +2,7 @@ import uuid
 
 from django.conf import settings
 from django.db import connection, models
-from django.db.models import F, Window
-from django.db.models.functions import RowNumber
+from django.db.models import Count, OuterRef, Subquery
 from django.utils import timezone
 
 
@@ -54,12 +53,22 @@ class Client(models.Model):
 
 class BidQuerySet(models.QuerySet):
     def with_serial(self):
-        """Display position, recomputed on every query — never stored.
-        Closes gaps on delete because it runs over this queryset only,
-        which the default manager already restricts to non-deleted rows."""
-        return self.annotate(
-            serial=Window(expression=RowNumber(), order_by=F("arrival_seq").asc())
+        """Display position, recomputed on every query — never stored, and
+        closes gaps on delete. A correlated subquery (this bid's 1-based rank
+        by arrival_seq among all non-deleted bids) rather than a Window(),
+        because SQL computes window functions after WHERE: annotating with
+        Window() and then filtering the result (e.g. the register's column
+        filters) would silently rank only the filtered rows instead of the
+        whole table. A subquery has its own independent WHERE, so serial
+        stays correct regardless of what the outer queryset filters on."""
+        rank = (
+            self.model.objects.filter(arrival_seq__lte=OuterRef("arrival_seq"))
+            .order_by()
+            .values("is_deleted")
+            .annotate(rank=Count("pk"))
+            .values("rank")
         )
+        return self.annotate(serial=Subquery(rank))
 
 
 class BidManager(models.Manager):
@@ -185,8 +194,17 @@ class Bid(models.Model):
         and writes the audit trail (§10)."""
         from apps.audit.models import AuditEntry
 
-        old_value = getattr(self, field)
-        setattr(self, field, value)
+        is_m2m = self._meta.get_field(field).many_to_many
+        if is_m2m:
+            # Only engaged_resources today — never sheet-owned, but still
+            # goes through apply_change so it gets an audit trail like
+            # everything else. Direct attribute assignment isn't allowed for
+            # M2M fields, hence the .set() special case.
+            old_value = list(getattr(self, field).all())
+            getattr(self, field).set(value)
+        else:
+            old_value = getattr(self, field)
+            setattr(self, field, value)
 
         is_human = actor is not None
         if is_human:
@@ -198,14 +216,19 @@ class Bid(models.Model):
 
         self.save()
 
+        def describe(v):
+            if is_m2m:
+                return ", ".join(str(item) for item in v)
+            return "" if v is None else str(v)
+
         AuditEntry.objects.create(
             actor=actor,
             actor_label="" if is_human else "System (sync)",
             action=AuditEntry.Action.BID_UPDATE,
             bid=self,
             field=field,
-            old_value="" if old_value is None else str(old_value),
-            new_value="" if value is None else str(value),
+            old_value=describe(old_value),
+            new_value=describe(value),
         )
 
 

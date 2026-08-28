@@ -9,5 +9,7 @@ django-cors-headers==4.6.0
 user-agents==2.2.0
 gspread==6.1.4
 google-auth==2.36.0
+django-filter==24.3
+drf-spectacular==0.28.0
 pytest==8.3.4
 pytest-django==4.9.0
