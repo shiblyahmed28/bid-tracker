@@ -7,5 +7,7 @@ celery==5.4.0
 redis==5.2.1
 django-cors-headers==4.6.0
 user-agents==2.2.0
+gspread==6.1.4
+google-auth==2.36.0
 pytest==8.3.4
 pytest-django==4.9.0

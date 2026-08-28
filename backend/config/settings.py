@@ -2,6 +2,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import environ
+from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -124,6 +125,12 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
+CELERY_BEAT_SCHEDULE = {
+    "sync-google-sheet": {
+        "task": "apps.sync.tasks.sync_sheet_task",
+        "schedule": crontab(hour="0,8,16", minute=0),
+    },
+}
 
 # Google Sheets
 GOOGLE_SHEET_ID = env("GOOGLE_SHEET_ID", default="")

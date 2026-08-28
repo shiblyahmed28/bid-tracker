@@ -116,6 +116,10 @@ class Bid(models.Model):
 
     tender_id = models.CharField(max_length=100, blank=True)
 
+    # Sheet column 13 ("initiation", §5) — a real date column distinct from both
+    # initiation_mode and the ignored column-14 annotation. Not in CLAUDE.md §10's
+    # model listing; added so this data isn't silently dropped on sync.
+    initiation_date = models.DateField(null=True, blank=True)
     published_date = models.DateField(null=True, blank=True)
     prebid_date = models.DateField(null=True, blank=True)
     prebid_time = models.TimeField(null=True, blank=True)

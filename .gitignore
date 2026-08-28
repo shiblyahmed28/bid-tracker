@@ -7,6 +7,7 @@ __pycache__/
 *.pyc
 .venv/
 backend/staticfiles/
+backend/celerybeat-schedule
 
 # Node
 node_modules/

@@ -56,6 +56,19 @@ services:
         condition: service_healthy
     command: celery -A config worker -l info
 
+  beat:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A config beat -l info
+
   frontend:
     build: ./frontend
     restart: unless-stopped
