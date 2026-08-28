@@ -1,0 +1,135 @@
+/* ---------- FIELDS ---------- */
+.field {
+  margin-bottom: 13px;
+}
+.field > label {
+  display: block;
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+.inp,
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13.5px;
+  background: #fbfcfa;
+}
+.inp:focus,
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: var(--mid);
+  background: #fff;
+  outline: none;
+}
+.req::after {
+  content: " *";
+  color: var(--danger);
+}
+.hint {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.err {
+  font-size: 11px;
+  color: var(--danger);
+  margin-top: 4px;
+}
+
+/* ---------- BUTTONS ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 15px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13.5px;
+  transition: 0.14s;
+  white-space: nowrap;
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.btn-p {
+  background: var(--deep);
+  color: #fff;
+}
+.btn-p:hover:not(:disabled) {
+  background: #26502a;
+}
+.btn-s {
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.btn-s:hover:not(:disabled) {
+  border-color: var(--mid);
+  color: var(--deep);
+}
+.btn-d {
+  background: #fff;
+  border: 1px solid #e9c9c5;
+  color: var(--danger);
+}
+.btn-d:hover:not(:disabled) {
+  background: #fdf3f2;
+}
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+.btn-full {
+  width: 100%;
+}
+
+/* ---------- CARDS ---------- */
+.card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--sh);
+  margin-bottom: 13px;
+}
+.chead {
+  padding: 12px 15px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.chead h2 {
+  font-size: 13.5px;
+  font-weight: 650;
+}
+.cbody {
+  padding: 15px;
+}
+.scope {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  background: #f2f5f0;
+  padding: 2.5px 7px;
+  border-radius: 4px;
+  font-weight: 650;
+}
+
+/* A table that must never widen the page itself — it scrolls internally. */
+.tscroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
