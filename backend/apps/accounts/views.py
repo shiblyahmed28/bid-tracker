@@ -1,6 +1,9 @@
+from django.conf import settings
+from django.core.mail import send_mail
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -14,8 +17,11 @@ from apps.audit.models import AuditEntry
 from .models import User, UserSession
 from .permissions import IsAdmin, IsAuthenticatedViewer
 from .serializers import (
+    AdminPasswordResetSerializer,
+    ChangePasswordSerializer,
     LoginSerializer,
     MeSerializer,
+    ProfileSerializer,
     SessionAwareTokenRefreshSerializer,
     UserSerializer,
     UserSessionSerializer,
@@ -27,6 +33,30 @@ USER_TRACKED_FIELDS = ["email", "full_name", "phone", "role", "is_active", "must
 
 def _current_session_jti(request):
     return request.auth.get("session_jti") if request.auth else None
+
+
+def _revoke_sessions(sessions, *, actor, note, ip, user_agent):
+    """Blacklist + mark revoked every session in `sessions`, writing one
+    SESSION_REVOKE audit entry each (§14/§15). Shared by "sign out everywhere
+    else", "change password" and "admin reset password"."""
+    now = timezone.now()
+    revoked = 0
+    for session in sessions:
+        blacklist_jti(session.refresh_jti, user=session.user, created_at=session.created_at)
+        session.revoked_at = now
+        session.save(update_fields=["revoked_at"])
+        revoked += 1
+        AuditEntry.objects.create(
+            actor=actor,
+            actor_label=actor.email,
+            action=AuditEntry.Action.SESSION_REVOKE,
+            field="session",
+            old_value=str(session.id),
+            new_value=note(session),
+            ip=ip,
+            user_agent=user_agent,
+        )
+    return revoked
 
 
 class LoginView(TokenObtainPairView):
@@ -142,6 +172,75 @@ class MeView(generics.RetrieveAPIView):
         return self.request.user
 
 
+class ProfileUpdateView(generics.UpdateAPIView):
+    """PATCH /auth/profile/ — full_name, email (domain-checked), phone (§14).
+    Writes one audit entry per changed field, same convention as UserViewSet."""
+
+    permission_classes = [IsAuthenticatedViewer]
+    serializer_class = ProfileSerializer
+
+    def get_object(self):
+        return self.request.user
+
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        old_values = {field: getattr(instance, field) for field in ("email", "full_name", "phone")}
+        user = serializer.save()
+
+        ip = get_client_ip(self.request)
+        user_agent = get_user_agent(self.request)
+        for field, old in old_values.items():
+            new = getattr(user, field)
+            if old != new:
+                AuditEntry.objects.create(
+                    actor=user,
+                    actor_label=user.email,
+                    action=AuditEntry.Action.USER_UPDATE,
+                    field=field,
+                    old_value=str(old),
+                    new_value=str(new),
+                    ip=ip,
+                    user_agent=user_agent,
+                )
+
+
+class ChangePasswordView(APIView):
+    """POST /auth/change-password/ — current/new/confirm (§14). Revokes every
+    other session but keeps the caller's own alive, and is itself audited."""
+
+    permission_classes = [IsAuthenticatedViewer]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data, context={"user": request.user})
+        serializer.is_valid(raise_exception=True)
+
+        request.user.set_password(serializer.validated_data["new_password"])
+        request.user.save(update_fields=["password"])
+
+        current_jti = _current_session_jti(request)
+        sessions = UserSession.objects.filter(user=request.user, revoked_at__isnull=True)
+        if current_jti:
+            sessions = sessions.exclude(refresh_jti=current_jti)
+
+        ip = get_client_ip(request)
+        user_agent = get_user_agent(request)
+        revoked_count = _revoke_sessions(
+            sessions,
+            actor=request.user,
+            note=lambda session: "revoked (password-changed)",
+            ip=ip,
+            user_agent=user_agent,
+        )
+        AuditEntry.objects.create(
+            actor=request.user,
+            actor_label=request.user.email,
+            action=AuditEntry.Action.PASSWORD_CHANGE,
+            ip=ip,
+            user_agent=user_agent,
+        )
+        return Response({"revoked_sessions": revoked_count}, status=200)
+
+
 class SessionListView(generics.ListAPIView):
     """GET /auth/sessions/ — the caller's own sessions, newest first (§14)."""
 
@@ -168,25 +267,13 @@ class RevokeOthersView(APIView):
         if current_jti:
             sessions = sessions.exclude(refresh_jti=current_jti)
 
-        now = timezone.now()
-        ip = get_client_ip(request)
-        user_agent = get_user_agent(request)
-        revoked_count = 0
-        for session in sessions:
-            blacklist_jti(session.refresh_jti, user=session.user, created_at=session.created_at)
-            session.revoked_at = now
-            session.save(update_fields=["revoked_at"])
-            revoked_count += 1
-            AuditEntry.objects.create(
-                actor=request.user,
-                actor_label=request.user.email,
-                action=AuditEntry.Action.SESSION_REVOKE,
-                field="session",
-                old_value=str(session.id),
-                new_value="revoked (revoke-others)",
-                ip=ip,
-                user_agent=user_agent,
-            )
+        revoked_count = _revoke_sessions(
+            sessions,
+            actor=request.user,
+            note=lambda session: "revoked (revoke-others)",
+            ip=get_client_ip(request),
+            user_agent=get_user_agent(request),
+        )
         return Response({"revoked": revoked_count}, status=200)
 
 
@@ -272,3 +359,69 @@ class UserViewSet(viewsets.ModelViewSet):
                     ip=ip,
                     user_agent=user_agent,
                 )
+
+    @action(detail=True, methods=["post"], url_path="reset-password")
+    def reset_password(self, request, pk=None):
+        """POST /users/{id}/reset-password/ — admin only (§14/§17). The admin
+        chooses the new password directly; it is never derived from or shown
+        alongside the old one, which stays hashed and unreadable regardless."""
+        target = self.get_object()
+        serializer = AdminPasswordResetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        target.set_password(data["new_password"])
+        if data["force_change"]:
+            target.must_change_password = True
+        target.save(update_fields=["password", "must_change_password"])
+
+        ip = get_client_ip(request)
+        user_agent = get_user_agent(request)
+
+        revoked_count = 0
+        if data["revoke_sessions"]:
+            revoked_count = _revoke_sessions(
+                UserSession.objects.filter(user=target, revoked_at__isnull=True),
+                actor=request.user,
+                note=lambda session: f"revoked (admin password reset, by {request.user.email})",
+                ip=ip,
+                user_agent=user_agent,
+            )
+
+        emailed = False
+        if data["email_user"]:
+            emailed = bool(
+                send_mail(
+                    subject="Your Spectrum Bid Tracker password was reset",
+                    message=(
+                        f"An administrator ({request.user.email}) reset your password.\n\n"
+                        + (
+                            "You will be asked to set a new password the next time you sign in.\n\n"
+                            if data["force_change"]
+                            else "Contact your administrator for your new password if you were not "
+                            "told it directly.\n\n"
+                        )
+                        + "If you did not expect this, contact an administrator immediately."
+                    ),
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[target.email],
+                    fail_silently=True,
+                )
+            )
+
+        AuditEntry.objects.create(
+            actor=request.user,
+            actor_label=request.user.email,
+            action=AuditEntry.Action.PASSWORD_RESET,
+            field="password",
+            new_value=(
+                f"{target.email} — force_change={data['force_change']}, "
+                f"emailed={emailed}, sessions_revoked={revoked_count}"
+            ),
+            ip=ip,
+            user_agent=user_agent,
+        )
+        return Response(
+            {"force_change": data["force_change"], "emailed": emailed, "revoked_sessions": revoked_count},
+            status=200,
+        )

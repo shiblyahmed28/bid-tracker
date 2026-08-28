@@ -34,3 +34,18 @@ export function formatDMY(iso: string | null | undefined): string {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   return `${d} ${months[Number(m) - 1]} ${y}`;
 }
+
+/** Full "27 Aug 2026, 08:41" rendering in Dhaka time (§2.7) — for session and
+ * audit tables where the bare day/month (formatSyncTime) loses the year. */
+export function formatFullDateTime(isoString: string | null | undefined): string {
+  if (!isoString) return "—";
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: DHAKA_TZ,
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(isoString));
+}

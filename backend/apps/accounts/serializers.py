@@ -26,6 +26,56 @@ class MeSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class ProfileSerializer(serializers.ModelSerializer):
+    """PATCH /auth/profile/ — full_name, email and phone only (§14). Email keeps
+    the model's domain validator and unique constraint (excluding self on update)
+    since ModelSerializer copies both from the field automatically."""
+
+    class Meta:
+        model = User
+        fields = ["id", "email", "full_name", "phone", "role", "must_change_password", "date_joined"]
+        read_only_fields = ["id", "role", "must_change_password", "date_joined"]
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True, style={"input_type": "password"})
+    new_password = serializers.CharField(write_only=True, style={"input_type": "password"})
+    confirm_password = serializers.CharField(write_only=True, style={"input_type": "password"})
+
+    def validate_current_password(self, value):
+        if not self.context["user"].check_password(value):
+            raise serializers.ValidationError("Current password is incorrect.")
+        return value
+
+    def validate_new_password(self, value):
+        if len(value) < 10:
+            raise serializers.ValidationError("Must be at least 10 characters.")
+        return value
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "Does not match the new password."})
+        return attrs
+
+
+class AdminPasswordResetSerializer(serializers.Serializer):
+    new_password = serializers.CharField(write_only=True, style={"input_type": "password"})
+    confirm_password = serializers.CharField(write_only=True, style={"input_type": "password"})
+    force_change = serializers.BooleanField(default=True)
+    email_user = serializers.BooleanField(default=True)
+    revoke_sessions = serializers.BooleanField(default=True)
+
+    def validate_new_password(self, value):
+        if len(value) < 10:
+            raise serializers.ValidationError("Must be at least 10 characters.")
+        return value
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "Does not match the new password."})
+        return attrs
+
+
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, style={"input_type": "password"})
 

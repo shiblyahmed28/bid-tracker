@@ -109,3 +109,30 @@ export function MenuIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function DesktopIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" {...props}>
+      <rect x="2" y="4" width="20" height="13" rx="1.5" />
+      <path d="M8 21h8M12 17v4" />
+    </svg>
+  );
+}
+
+export function MobileIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" {...props}>
+      <rect x="6" y="2" width="12" height="20" rx="2" />
+      <path d="M11 18h2" />
+    </svg>
+  );
+}
+
+export function TabletIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" {...props}>
+      <rect x="4" y="2" width="16" height="20" rx="2" />
+      <path d="M11 18h2" />
+    </svg>
+  );
+}

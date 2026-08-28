@@ -8,9 +8,11 @@ export interface AuthUser {
   id: number;
   email: string;
   full_name: string;
+  phone: string;
   role: Role;
   must_change_password: boolean;
   notifications_muted: boolean;
+  date_joined: string;
 }
 
 interface AuthContextValue {
@@ -18,6 +20,7 @@ interface AuthContextValue {
   isInitializing: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -67,6 +70,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(me.data);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const response = await api.get<AuthUser>("/auth/me/");
+    setUser(response.data);
+  }, []);
+
   const logout = useCallback(() => {
     const refresh = getRefreshToken();
     if (refresh) {
@@ -79,7 +87,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearLocalSession]);
 
   return (
-    <AuthContext.Provider value={{ user, isInitializing, login, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, isInitializing, login, logout, refreshUser }}>
+      {children}
+    </AuthContext.Provider>
   );
 }
 

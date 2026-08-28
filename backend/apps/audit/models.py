@@ -19,6 +19,7 @@ class AuditEntry(models.Model):
         USER_UPDATE = "user_update", "User updated"
         ROLE_CHANGE = "role_change", "Role changed"
         PASSWORD_RESET = "password_reset", "Password reset"
+        PASSWORD_CHANGE = "password_change", "Password changed"
         MANUAL_SYNC_TRIGGER = "manual_sync_trigger", "Manual sync triggered"
 
     # actor is null with actor_label="System (sync)" for automated changes.
