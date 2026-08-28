@@ -31,7 +31,13 @@ class AuditEntry(models.Model):
     )
     actor_label = models.CharField(max_length=150, blank=True)
     action = models.CharField(max_length=32, choices=Action.choices)
-    # bid FK arrives in Phase 4 once apps.bids.Bid exists.
+    bid = models.ForeignKey(
+        "bids.Bid",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="audit_entries",
+    )
     field = models.CharField(max_length=100, blank=True)
     old_value = models.TextField(null=True, blank=True)
     new_value = models.TextField(null=True, blank=True)
