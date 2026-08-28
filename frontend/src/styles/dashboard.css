@@ -1,0 +1,464 @@
+/* ---------- DATE RANGE BAR ---------- */
+.rangebar {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--sh);
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 13px;
+}
+.rangebar label {
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.rangebar input[type="date"] {
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: #fbfcfa;
+}
+.chips {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.chip {
+  padding: 5px 11px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background: #fff;
+}
+.chip.on {
+  background: var(--deep);
+  border-color: var(--deep);
+  color: #fff;
+}
+.chip:not(.on):hover {
+  border-color: var(--mid);
+  color: var(--deep);
+}
+.rcount {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.rcount b {
+  color: var(--ink);
+}
+
+/* ---------- RUNWAY ---------- */
+.rlegend {
+  display: flex;
+  gap: 12px;
+  font-size: 10.5px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+.rlegend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.rlegend i,
+.lfoot i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2.5px;
+  display: inline-block;
+}
+.rail {
+  display: flex;
+  position: relative;
+  min-height: 104px;
+  gap: 2px;
+}
+.railline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 37px;
+  height: 2px;
+  background: #dde2d8;
+}
+.rday {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  position: relative;
+}
+.rday.today::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 26px;
+  left: 0;
+  right: 0;
+  background: linear-gradient(180deg, rgba(143, 193, 87, 0.15), rgba(143, 193, 87, 0));
+  border-radius: 6px;
+}
+.rmarks {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 3px;
+  align-items: center;
+  margin-bottom: 7px;
+  z-index: 2;
+}
+.rmark {
+  min-width: 30px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 8.5px;
+  transition: 0.14s;
+}
+.rmark:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+.rmark.ok {
+  background: var(--deep);
+}
+.rmark.open {
+  background: var(--warn);
+}
+.rmark.bad {
+  background: var(--danger);
+}
+.rtick {
+  width: 2px;
+  height: 8px;
+  background: #cfd6c9;
+  z-index: 2;
+  margin-bottom: 5px;
+}
+.rtick.t {
+  background: var(--deep);
+  height: 14px;
+  width: 3px;
+}
+.rlab {
+  text-align: center;
+  line-height: 1.15;
+}
+.rlab b {
+  display: block;
+  font-size: 11.5px;
+}
+.rlab span {
+  font-size: 8.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.rday.today .rlab b,
+.rday.today .rlab span {
+  color: var(--deep);
+  font-weight: 700;
+}
+.rnote {
+  margin-top: 11px;
+  padding: 10px 12px;
+  background: #fff8e8;
+  border-left: 3px solid var(--warn);
+  border-radius: 0 7px 7px 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #6b5518;
+}
+.mini {
+  font-size: 10px;
+  background: #eef3ea;
+  color: var(--deep);
+  padding: 1.5px 6px;
+  border-radius: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ---------- KPI ---------- */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 13px;
+  margin-bottom: 13px;
+}
+.kpi {
+  padding: 14px 15px;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+.klab {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 650;
+}
+.kval {
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.2;
+  margin: 2px 0;
+}
+.ksub {
+  font-size: 11px;
+  color: var(--muted);
+}
+.kfoot {
+  font-size: 10.5px;
+  font-weight: 650;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.kfoot.up {
+  color: var(--deep);
+}
+.kfoot.warn {
+  color: #9a6e12;
+}
+.kfoot.flat {
+  color: var(--muted);
+}
+
+/* ---------- GRID / DONUT / BREAKDOWN ---------- */
+.grid {
+  display: grid;
+  gap: 13px;
+}
+/* Grid items default to min-width:auto, so a card holding a table with
+   unbreakable content (numbers, tag pills) won't shrink below that table's
+   natural width — it silently pushes the whole grid wider than the
+   viewport instead of letting .tscroll's own overflow-x:auto do its job. */
+.grid > * {
+  min-width: 0;
+}
+.grid.c2 {
+  grid-template-columns: 1.5fr 1fr;
+}
+.dwrap {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+.dleg {
+  list-style: none;
+  flex: 1;
+  min-width: 125px;
+}
+.dleg li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  padding: 2px 0;
+}
+.dleg i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2.5px;
+  flex: 0 0 9px;
+}
+.dleg b {
+  margin-left: auto;
+}
+.lrow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+.lbar {
+  flex: 1;
+  height: 8px;
+  background: #f0f3ee;
+  border-radius: 4px;
+  position: relative;
+  min-width: 50px;
+}
+.lbar i,
+.lbar u {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 4px;
+}
+.lbar i {
+  background: #cbd6c4;
+}
+.lbar u {
+  background: var(--deep);
+}
+.lrow b {
+  width: 26px;
+  text-align: right;
+}
+.lrow small {
+  width: 32px;
+  text-align: right;
+  font-size: 10px;
+  color: var(--deep);
+  font-weight: 650;
+}
+.lfoot {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 10px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ---------- TABLE / TAG ---------- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th {
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 650;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  background: #fafbf9;
+}
+td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #eff2ed;
+  font-size: 12.5px;
+  vertical-align: middle;
+}
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+.trunc {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2.5px 7px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.t-won {
+  background: #e8f3e2;
+  color: #2e6130;
+}
+.t-lost {
+  background: #fbe9e7;
+  color: #a93a30;
+}
+.t-pend {
+  background: #fff4e0;
+  color: #8a6215;
+}
+.t-no {
+  background: #f0f1ee;
+  color: #6c7268;
+}
+
+/* ---------- EMPTY / SKELETON ---------- */
+.empty {
+  padding: 34px 20px;
+  text-align: center;
+}
+.empty h3 {
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+.empty p {
+  font-size: 12.5px;
+  color: var(--muted);
+  max-width: 430px;
+  margin: 0 auto;
+}
+.skel {
+  background: linear-gradient(90deg, #eef1ec 25%, #f5f7f3 37%, #eef1ec 63%);
+  background-size: 400% 100%;
+  animation: skel-shine 1.4s ease infinite;
+  border-radius: 6px;
+}
+@keyframes skel-shine {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skel {
+    animation: none;
+    background: #eef1ec;
+  }
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 1240px) {
+  .kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .grid.c2 {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .kpis {
+    grid-template-columns: 1fr;
+  }
+  .kval {
+    font-size: 24px;
+  }
+  .rail {
+    overflow-x: auto;
+    gap: 1px;
+  }
+  .rday {
+    min-width: 34px;
+  }
+  .rangebar {
+    gap: 8px;
+  }
+  .rangebar .chips {
+    width: 100%;
+  }
+  .chip {
+    flex: 1;
+    text-align: center;
+  }
+}

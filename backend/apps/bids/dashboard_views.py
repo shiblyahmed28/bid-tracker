@@ -56,11 +56,23 @@ def compute_summary(date_from, date_to):
     not_submitted = qs.filter(submission_status="NOT SUBMITTED").count()
 
     result_counts = {row["result"]: row["n"] for row in qs.values("result").annotate(n=Count("id"))}
-    won = result_counts.get("WON", 0)
-    lost = result_counts.get("LOST", 0)
+    # Lowest counts as a win, Disqualified as a loss — same grouping as
+    # DashboardBreakdownView's won/lost, so every panel agrees with the KPIs.
+    won = result_counts.get("WON", 0) + result_counts.get("LOWEST", 0)
+    lost = result_counts.get("LOST", 0) + result_counts.get("DISQUALIFIED", 0)
     pending = result_counts.get("PENDING", 0)
     decided = won + lost
     win_rate_pct = round(won / decided * 100, 1) if decided else None
+
+    # Bank guarantees not yet expired, among bids in range — a different
+    # question from "total security amount for bids in range" (security_locked
+    # below sums every bid regardless of whether its guarantee has expired).
+    today = timezone.localdate()
+    live_qs = qs.filter(bg_expiry_date__gte=today)
+    security_live = {
+        "count": live_qs.filter(security_amount__isnull=False).count(),
+        "locked": money_by_currency(live_qs, "security_amount", "security_currency"),
+    }
 
     return {
         "from": date_from,
@@ -75,6 +87,7 @@ def compute_summary(date_from, date_to):
         "win_rate_pct": win_rate_pct,
         "result_breakdown": {(k or "(blank)"): v for k, v in result_counts.items()},
         "security_locked": money_by_currency(qs, "security_amount", "security_currency"),
+        "security_live": security_live,
     }
 
 
@@ -100,7 +113,14 @@ class DashboardTrendView(APIView):
             Bid.objects.filter(submission_date__gte=date_from, submission_date__lte=date_to)
             .annotate(bucket=trunc_for_mode(mode))
             .values("bucket")
-            .annotate(count=Count("id"))
+            .annotate(
+                count=Count("id"),
+                # The submitted/not_submitted split is what the "Submitted vs
+                # not submitted" stacked chart needs, and what the runway
+                # panel falls back to for spans too long for a day rail (§12).
+                submitted=Count("id", filter=Q(submission_status="SUBMITTED")),
+                not_submitted=Count("id", filter=Q(submission_status="NOT SUBMITTED")),
+            )
             .order_by("bucket")
         )
 
@@ -109,7 +129,15 @@ class DashboardTrendView(APIView):
                 "from": date_from,
                 "to": date_to,
                 "bucket": mode,
-                "points": [{"bucket": row["bucket"], "count": row["count"]} for row in qs],
+                "points": [
+                    {
+                        "bucket": row["bucket"],
+                        "count": row["count"],
+                        "submitted": row["submitted"],
+                        "not_submitted": row["not_submitted"],
+                    }
+                    for row in qs
+                ],
             }
         )
 
@@ -130,7 +158,13 @@ class DashboardBreakdownView(APIView):
             Bid.objects.filter(submission_date__gte=date_from, submission_date__lte=date_to)
             .annotate(label=F(field))
             .values("label")
-            .annotate(count=Count("id"))
+            .annotate(
+                count=Count("id"),
+                # Same Won+Lowest / Lost+Disqualified grouping as the summary
+                # KPIs — one consistent definition of "won"/"lost" everywhere.
+                won=Count("id", filter=Q(result__in=["WON", "LOWEST"])),
+                lost=Count("id", filter=Q(result__in=["LOST", "DISQUALIFIED"])),
+            )
             .order_by("-count")
         )
 
@@ -139,7 +173,15 @@ class DashboardBreakdownView(APIView):
                 "from": date_from,
                 "to": date_to,
                 "by": by,
-                "breakdown": [{"label": row["label"] or "(blank)", "count": row["count"]} for row in qs],
+                "breakdown": [
+                    {
+                        "label": row["label"] or "(blank)",
+                        "count": row["count"],
+                        "won": row["won"],
+                        "lost": row["lost"],
+                    }
+                    for row in qs
+                ],
             }
         )
 

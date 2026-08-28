@@ -79,6 +79,40 @@ class TestDashboardSummary:
         assert Decimal(str(data["security_locked"]["BDT"])) == Decimal("100000")
         assert Decimal(str(data["security_locked"]["USD"])) == Decimal("5000")
 
+    def test_lowest_counts_as_won_and_disqualified_as_lost(self, api_client, viewer, make_bid):
+        make_bid(description="won", submission_date=TODAY, result="WON")
+        make_bid(description="lowest", submission_date=TODAY, result="LOWEST")
+        make_bid(description="lost", submission_date=TODAY, result="LOST")
+        make_bid(description="disqualified", submission_date=TODAY, result="DISQUALIFIED")
+
+        login(api_client, viewer, "ViewerPass123!")
+        response = api_client.get("/api/v1/dashboard/summary/")
+        assert response.data["won"] == 2
+        assert response.data["lost"] == 2
+        assert response.data["win_rate_pct"] == 50.0
+
+    def test_security_live_excludes_expired_guarantees(self, api_client, viewer, make_bid):
+        make_bid(
+            description="live",
+            submission_date=TODAY,
+            bg_expiry_date=TODAY + datetime.timedelta(days=30),
+            security_amount=Decimal("50000"),
+            security_currency="BDT",
+        )
+        make_bid(
+            description="expired",
+            submission_date=TODAY,
+            bg_expiry_date=TODAY - datetime.timedelta(days=30),
+            security_amount=Decimal("999999"),
+            security_currency="BDT",
+        )
+        make_bid(description="no guarantee", submission_date=TODAY)
+
+        login(api_client, viewer, "ViewerPass123!")
+        response = api_client.get("/api/v1/dashboard/summary/")
+        assert response.data["security_live"]["count"] == 1
+        assert Decimal(str(response.data["security_live"]["locked"]["BDT"])) == Decimal("50000")
+
     def test_respects_from_to(self, api_client, viewer, make_bid):
         make_bid(description="in", submission_date=TODAY)
         make_bid(description="out", submission_date=TODAY - datetime.timedelta(days=100))
@@ -121,6 +155,21 @@ class TestDashboardTrendAdaptiveBucketing:
         )
         assert response.data["bucket"] == "monthly"
 
+    def test_points_split_submitted_vs_not_submitted(self, api_client, viewer, make_bid):
+        make_bid(description="a", submission_date=TODAY, submission_status="SUBMITTED")
+        make_bid(description="b", submission_date=TODAY, submission_status="SUBMITTED")
+        make_bid(description="c", submission_date=TODAY, submission_status="NOT SUBMITTED")
+
+        login(api_client, viewer, "ViewerPass123!")
+        response = api_client.get(
+            "/api/v1/dashboard/trend/",
+            {"from": str(TODAY), "to": str(TODAY + datetime.timedelta(days=1))},
+        )
+        point = response.data["points"][0]
+        assert point["count"] == 3
+        assert point["submitted"] == 2
+        assert point["not_submitted"] == 1
+
 
 @pytest.mark.django_db
 class TestDashboardBreakdown:
@@ -137,6 +186,19 @@ class TestDashboardBreakdown:
         login(api_client, viewer, "ViewerPass123!")
         response = api_client.get("/api/v1/dashboard/breakdown/", {"by": "nonsense"})
         assert response.status_code == 400
+
+    def test_won_and_lost_per_group(self, api_client, viewer, make_bid, team):
+        make_bid(description="a", submission_date=TODAY, team=team, result="WON")
+        make_bid(description="b", submission_date=TODAY, team=team, result="LOWEST")
+        make_bid(description="c", submission_date=TODAY, team=team, result="LOST")
+        make_bid(description="d", submission_date=TODAY, team=team, result="PENDING")
+
+        login(api_client, viewer, "ViewerPass123!")
+        response = api_client.get("/api/v1/dashboard/breakdown/", {"by": "team"})
+        row = next(r for r in response.data["breakdown"] if r["label"] == team.name)
+        assert row["count"] == 4
+        assert row["won"] == 2
+        assert row["lost"] == 1
 
 
 @pytest.mark.django_db
