@@ -5,6 +5,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsAdmin, IsAuthenticatedViewer, IsEditorOrAbove
 from apps.audit.models import AuditEntry
@@ -12,12 +13,69 @@ from apps.audit.serializers import AuditEntrySerializer
 from apps.sync.resolvers import resolve_client, resolve_person
 
 from .filters import BidFilter
-from .models import Bid
+from .models import Bid, Team
 from .pagination import StandardPagination
 from .serializers import BidDetailSerializer, BidListSerializer, BidWriteSerializer
 
 SELECT_RELATED = ("client", "cam", "sales_resource", "bid_manager", "team", "created_by", "updated_by")
 PREFETCH_RELATED = ("engaged_resources",)
+
+# Register column key -> underlying field for a plain distinct-values lookup
+# (§13: "enum columns get a dropdown of distinct values"). `team` and
+# `delivery_type` are handled specially below — team needs an id, not a
+# name, and delivery_type isn't a real column at all.
+DISTINCT_TEXT_FIELDS = {
+    "client": "client__name",
+    "stage": "stage",
+    "procurement_type": "procurement_type",
+    "initiation_mode": "initiation_mode",
+    "cam": "cam__canonical_name",
+    "sales_resource": "sales_resource__canonical_name",
+    "bid_manager": "bid_manager__canonical_name",
+    "security_mode": "security_mode",
+    "bg_bank": "bg_bank",
+    "submission_status": "submission_status",
+    "result": "result",
+    "source": "source",
+}
+
+
+class BidDistinctValuesView(APIView):
+    """GET /bids/distinct/?field=stage — unscoped by date range, matching
+    the register's filter dropdowns (§13): you can filter to "Won" even if
+    there are currently zero Won bids in the selected range."""
+
+    permission_classes = [IsAuthenticatedViewer]
+
+    def get(self, request):
+        field = request.query_params.get("field", "")
+
+        if field == "team":
+            options = [{"value": str(team.id), "label": team.name} for team in Team.objects.order_by("name")]
+            return Response({"field": field, "options": options})
+
+        if field == "delivery_type":
+            combos = Bid.objects.values_list("is_goods", "is_works", "is_service").distinct()
+            labels = set()
+            for is_goods, is_works, is_service in combos:
+                parts = [name for present, name in [(is_goods, "Goods"), (is_works, "Works"), (is_service, "Service")] if present]
+                if parts:
+                    labels.add(", ".join(parts))
+            options = [{"value": label, "label": label} for label in sorted(labels)]
+            return Response({"field": field, "options": options})
+
+        db_field = DISTINCT_TEXT_FIELDS.get(field)
+        if db_field is None:
+            return Response({"detail": f"Unknown field '{field}'."}, status=400)
+
+        values = (
+            Bid.objects.exclude(**{db_field: ""})
+            .exclude(**{f"{db_field}__isnull": True})
+            .order_by(db_field)
+            .values_list(db_field, flat=True)
+            .distinct()
+        )
+        return Response({"field": field, "options": [{"value": v, "label": v} for v in values]})
 
 # Keys on BidWriteSerializer.validated_data that need Person/Client resolution
 # before they map onto real Bid fields (mirrors apps.sync.sync.RESOLVED_KEYS).

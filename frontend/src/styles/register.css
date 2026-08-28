@@ -1,0 +1,165 @@
+/* ---------- ALL BIDS ---------- */
+.tools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fbfcfa;
+  padding: 13px;
+  margin-top: 11px;
+}
+.panel h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  margin-bottom: 9px;
+}
+.colgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
+  gap: 5px;
+}
+.colchk {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12.3px;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.colchk input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--deep);
+  flex: 0 0 14px;
+}
+.colchk.new {
+  border-color: var(--lime);
+  background: #f6fbf1;
+}
+.colchk small {
+  margin-left: auto;
+  font-size: 9px;
+  color: var(--lime);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.fgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 9px;
+}
+.fgrid .inp {
+  padding: 7px 9px;
+  font-size: 12.5px;
+}
+.fgrid label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 650;
+  display: block;
+  margin-bottom: 3px;
+}
+.actv {
+  background: var(--lime);
+  border-color: var(--lime);
+  color: #1e3520;
+}
+
+/* ---------- CHIPS (active filters) ---------- */
+.chiplist {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.removable-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.removable-chip button {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 1px;
+}
+.removable-chip button:hover {
+  color: var(--danger);
+}
+.removable-chip.clear-all {
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+.removable-chip.clear-all:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* ---------- PAGER ---------- */
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  padding: 12px 15px;
+  border-top: 1px solid var(--line);
+}
+.pg {
+  min-width: 31px;
+  height: 31px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  background: #fff;
+  display: grid;
+  place-items: center;
+}
+.pg.on {
+  background: var(--deep);
+  border-color: var(--deep);
+  color: #fff;
+}
+.pg:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.pg:not(.on):not(:disabled):hover {
+  border-color: var(--mid);
+}
+.pgap {
+  padding: 0 3px;
+  color: var(--muted);
+}
+
+/* ---------- TABLE (sticky header, own horizontal scroll) ---------- */
+.tscroll.tall {
+  max-height: 62vh;
+  overflow-y: auto;
+}
+.tscroll th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+@media (max-width: 600px) {
+  .fgrid,
+  .colgrid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -36,8 +36,29 @@ class BidFilter(django_filters.FilterSet):
     security_amount_raw = django_filters.CharFilter(lookup_expr="icontains")
     credit_facility_raw = django_filters.CharFilter(lookup_expr="icontains")
 
+    bg_bank = django_filters.CharFilter(lookup_expr="iexact")
+    bg_reference = django_filters.CharFilter(lookup_expr="icontains")
+
+    # §13's "list" column type (Engaged resources): a contains-match against
+    # the joined names, distinct from `engaged` (exact match by person id).
+    engaged_resources = django_filters.CharFilter(method="filter_engaged_resources")
+
+    # Delivery type isn't a real column — it's is_goods/is_works/is_service
+    # collapsed into one enum-style value ("Goods, Service") for the register
+    # (§13), so filtering it means matching that exact combination.
+    delivery_type = django_filters.CharFilter(method="filter_delivery_type")
+
     submission_after = django_filters.DateFilter(field_name="submission_date", lookup_expr="gte")
     submission_before = django_filters.DateFilter(field_name="submission_date", lookup_expr="lte")
+
+    def filter_engaged_resources(self, queryset, name, value):
+        return queryset.filter(engaged_resources__canonical_name__icontains=value).distinct()
+
+    def filter_delivery_type(self, queryset, name, value):
+        wanted = {part.strip().lower() for part in value.split(",") if part.strip()}
+        return queryset.filter(
+            is_goods=("goods" in wanted), is_works=("works" in wanted), is_service=("service" in wanted)
+        )
 
     class Meta:
         model = Bid
@@ -62,8 +83,12 @@ class BidFilter(django_filters.FilterSet):
             "missing_from_sheet",
             "team",
             "engaged",
+            "engaged_resources",
+            "delivery_type",
             "security_amount_raw",
             "credit_facility_raw",
+            "bg_bank",
+            "bg_reference",
             "submission_after",
             "submission_before",
         ]

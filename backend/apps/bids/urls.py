@@ -9,7 +9,7 @@ from .dashboard_views import (
     DashboardSummaryView,
     DashboardTrendView,
 )
-from .views import BidViewSet
+from .views import BidDistinctValuesView, BidViewSet
 
 router = DefaultRouter()
 router.register("bids", BidViewSet, basename="bid")
@@ -21,4 +21,7 @@ urlpatterns = [
     path("dashboard/deadlines/", DashboardDeadlinesView.as_view(), name="dashboard-deadlines"),
     path("dashboard/bg-exposure/", DashboardBgExposureView.as_view(), name="dashboard-bg-exposure"),
     path("dashboard/classic/", DashboardClassicView.as_view(), name="dashboard-classic"),
+    # Must precede router.urls — BidViewSet's lookup regex (`[^/.]+`) would
+    # otherwise swallow "distinct" as if it were a bid id.
+    path("bids/distinct/", BidDistinctValuesView.as_view(), name="bid-distinct-values"),
 ] + router.urls

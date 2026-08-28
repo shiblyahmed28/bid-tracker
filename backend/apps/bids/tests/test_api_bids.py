@@ -120,6 +120,41 @@ class TestBidListBehaviour:
         assert response.data["count"] == 1
         assert response.data["results"][0]["id"] == str(engaged_bid.id)
 
+    def test_engaged_resources_contains_filter(self, api_client, viewer, make_bid):
+        today = datetime.date.today()
+        person = Person.objects.create(canonical_name="Jane Q. Analyst")
+        matching_bid = make_bid(description="a", submission_date=today)
+        matching_bid.engaged_resources.set([person])
+        make_bid(description="b", submission_date=today)
+        login(api_client, viewer, "ViewerPass123!")
+        response = api_client.get("/api/v1/bids/", {"engaged_resources": "jane"})
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == str(matching_bid.id)
+
+    def test_bg_bank_filter_is_exact(self, api_client, viewer, make_bid):
+        today = datetime.date.today()
+        make_bid(description="a", submission_date=today, bg_bank="City Bank")
+        make_bid(description="b", submission_date=today, bg_bank="City Bank PLC")
+        login(api_client, viewer, "ViewerPass123!")
+        response = api_client.get("/api/v1/bids/", {"bg_bank": "City Bank"})
+        assert response.data["count"] == 1
+
+    def test_bg_reference_filter_is_contains(self, api_client, viewer, make_bid):
+        today = datetime.date.today()
+        make_bid(description="a", submission_date=today, bg_reference="BG-2026-0042")
+        make_bid(description="b", submission_date=today, bg_reference="OTHER-001")
+        login(api_client, viewer, "ViewerPass123!")
+        response = api_client.get("/api/v1/bids/", {"bg_reference": "2026"})
+        assert response.data["count"] == 1
+
+    def test_delivery_type_filter_matches_exact_combination(self, api_client, viewer, make_bid):
+        today = datetime.date.today()
+        make_bid(description="a", submission_date=today, is_goods=True, is_service=True)
+        make_bid(description="b", submission_date=today, is_goods=True)
+        login(api_client, viewer, "ViewerPass123!")
+        response = api_client.get("/api/v1/bids/", {"delivery_type": "Goods, Service"})
+        assert response.data["count"] == 1
+
 
 @pytest.mark.django_db
 class TestBidDetailRoleMatrix:
