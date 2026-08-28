@@ -1,14 +1,16 @@
 import { useState } from "react";
 
+import { downloadBidsCsv } from "../api/exports";
 import { DateRangeProvider, useDateRange } from "../dashboard/DateRangeContext";
 import { RangeBar } from "../dashboard/RangeBar";
 import { useDebouncedValue } from "../lib/useDebouncedValue";
-import { ActiveFilterChips } from "../register/ActiveFilterChips";
+import { ActiveFilterChips, labelFor } from "../register/ActiveFilterChips";
 import { BidTable } from "../register/BidTable";
 import { COLUMNS } from "../register/columns";
 import { ColumnPicker } from "../register/ColumnPicker";
 import { FilterPanel } from "../register/FilterPanel";
 import { Pager } from "../register/Pager";
+import { PdfExportDialog } from "../register/PdfExportDialog";
 import { useBidsQuery } from "../register/useBidsQuery";
 import { useColumnPreferences } from "../register/useColumnPreferences";
 import { useEnumOptions } from "../register/useEnumOptions";
@@ -25,6 +27,7 @@ function RegisterContent() {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [showColumns, setShowColumns] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showPdfDialog, setShowPdfDialog] = useState(false);
 
   const debouncedSearch = useDebouncedValue(searchInput);
   const debouncedFilters = useDebouncedValue(filters);
@@ -59,6 +62,16 @@ function RegisterContent() {
 
   const visibleColumns = COLUMNS.filter((c) => visibleKeys.includes(c.key));
 
+  const exportParams = {
+    submission_after: from,
+    submission_before: to,
+    search: debouncedSearch || undefined,
+    ...debouncedFilters,
+  };
+  const filterChipLabels = Object.entries(filters)
+    .filter(([, value]) => value)
+    .map(([param, value]) => labelFor(param, value, enumOptions));
+
   return (
     <>
       <div className="card">
@@ -88,6 +101,12 @@ function RegisterContent() {
                 Clear
               </button>
             )}
+            <button className="btn btn-s" onClick={() => downloadBidsCsv({ ...exportParams, columns: visibleKeys.join(",") })}>
+              Export CSV
+            </button>
+            <button className="btn btn-p" onClick={() => setShowPdfDialog(true)}>
+              Download PDF
+            </button>
           </div>
 
           {showColumns && (
@@ -134,6 +153,17 @@ function RegisterContent() {
           />
         )}
       </div>
+
+      <PdfExportDialog
+        open={showPdfDialog}
+        onClose={() => setShowPdfDialog(false)}
+        matchedCount={data?.count ?? null}
+        exportParams={exportParams}
+        filterChipLabels={filterChipLabels}
+        from={from}
+        to={to}
+        initialColumnKeys={visibleKeys}
+      />
     </>
   );
 }

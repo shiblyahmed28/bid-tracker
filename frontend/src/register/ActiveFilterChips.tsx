@@ -8,7 +8,7 @@ interface ActiveFilterChipsProps {
   onClearAll: () => void;
 }
 
-function labelFor(param: string, value: string, options: Record<string, DistinctOption[]>) {
+export function labelFor(param: string, value: string, options: Record<string, DistinctOption[]>) {
   const column = COLUMNS.find((c) => c.filterParam === param);
   const match = options[param]?.find((opt) => opt.value === value);
   return `${column?.label ?? param}: ${match?.label ?? value}`;

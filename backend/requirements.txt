@@ -11,5 +11,6 @@ gspread==6.1.4
 google-auth==2.36.0
 django-filter==24.3
 drf-spectacular==0.28.0
+weasyprint==63.1
 pytest==8.3.4
 pytest-django==4.9.0

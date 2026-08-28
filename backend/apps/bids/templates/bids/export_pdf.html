@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Bid Register</title>
+<style>
+  @page {
+    size: A4 landscape;
+    margin: 11mm;
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 8pt;
+      color: #82887F;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "DejaVu Sans", sans-serif;
+    font-size: 8.5pt;
+    color: #2E2E38;
+    margin: 0;
+  }
+  .header {
+    background: #2E6130;
+    color: #fff;
+    padding: 8pt 10pt;
+    border-radius: 4pt;
+    margin-bottom: 6pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .header table { width: 100%; border-collapse: collapse; }
+  .header td { border: 0; padding: 0; vertical-align: middle; }
+  .header img { width: 20pt; height: 20pt; display: block; }
+  .header h1 { font-size: 14pt; margin: 0 0 0 8pt; font-weight: 700; }
+  .caption {
+    font-size: 8pt;
+    color: #444;
+    line-height: 1.5;
+    margin: 0 0 8pt;
+  }
+  table.register {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+  }
+  thead { display: table-header-group; }
+  tbody tr { page-break-inside: avoid; }
+  th, td {
+    /* table-layout:fixed means no cell's content — however long or
+       unbreakable a token like a tender ID or BG reference — can ever grow
+       the table past the page margin; overflow-wrap forces a break inside
+       it instead. */
+    overflow-wrap: anywhere;
+  }
+  th:first-child, td:first-child {
+    width: 26pt;
+  }
+  th {
+    background: #EEF3EA;
+    text-align: left;
+    padding: 3pt 4pt;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #2E6130;
+    border-bottom: 1pt solid #2E6130;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  td {
+    padding: 3pt 4pt;
+    border-bottom: 0.4pt solid #CCC;
+    font-size: 8pt;
+  }
+  tbody tr:nth-child(even) { background: #FAFBF9; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <table>
+      <tr>
+        <td style="width: 20pt"><img src="{{ logo_data_uri }}" alt=""></td>
+        <td><h1>Bid Register</h1></td>
+      </tr>
+    </table>
+  </div>
+
+  <p class="caption">
+    <strong>{{ row_count }}</strong> record{{ row_count|pluralize }} · {{ filters_caption }}<br>
+    Generated {{ generated_at }} by {{ generated_by }} · Spectrum Engineering Consortium (Pvt.) Ltd.
+  </p>
+
+  <table class="register">
+    <thead>
+      <tr>
+        {% for column in columns %}<th>{{ column.label }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        {% for cell in row %}<td>{{ cell }}</td>{% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
