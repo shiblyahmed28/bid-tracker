@@ -8,6 +8,7 @@ class AuditEntry(models.Model):
     class Action(models.TextChoices):
         SIGN_IN = "sign_in", "Sign in"
         SIGN_IN_FAILED = "sign_in_failed", "Failed sign in"
+        ACCOUNT_LOCKOUT = "account_lockout", "Account locked out (too many failed sign-ins)"
         SIGN_OUT = "sign_out", "Sign out"
         SESSION_REVOKE = "session_revoke", "Session revoked"
         BID_CREATE = "bid_create", "Bid created"

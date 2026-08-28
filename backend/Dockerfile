@@ -22,6 +22,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Match the host dev user's uid/gid (1000) so the bind-mounted source stays
+# writable, and don't run the app process as root.
+RUN groupadd -g 1000 appuser && useradd -m -u 1000 -g appuser appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8000
 
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]

@@ -4,7 +4,7 @@ from pathlib import Path
 import environ
 from celery.schedules import crontab
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 env = environ.Env()
 environ.Env.read_env(BASE_DIR.parent / ".env")
@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "apps.notifications",
     "apps.audit",
     "apps.settings_admin",
+    "axes",
 ]
 
 MIDDLEWARE = [
@@ -42,6 +43,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "axes.middleware.AxesMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -76,6 +78,11 @@ DATABASES = {
 }
 
 AUTH_USER_MODEL = "accounts.User"
+
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -115,7 +122,7 @@ SPECTACULAR_SETTINGS = {
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
@@ -128,6 +135,15 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=["http://localhost:5173"])
 
 ALLOWED_EMAIL_DOMAIN = env("ALLOWED_EMAIL_DOMAIN", default="spectrum-bd.com")
+
+# Login rate limiting (django-axes) — 5 failures per email per 15 minutes,
+# regardless of which IP the attempts come from. A lockout is also written to
+# the audit trail (see apps.accounts.signals.log_lockout_to_audit).
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = timedelta(minutes=15)
+AXES_LOCKOUT_PARAMETERS = ["username"]
+AXES_USERNAME_FORM_FIELD = "email"
+AXES_RESET_ON_SUCCESS = True
 
 # Celery
 CELERY_BROKER_URL = env("REDIS_URL", default="redis://redis:6379/0")
@@ -173,3 +189,8 @@ EMAIL_BACKEND = env(
 )
 
 FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:5173")
+
+# Django admin is a superuser-only escape hatch, not part of the app's own
+# role/capability system — moved off the guessable "admin/" path and switched
+# off entirely outside DEBUG, where it isn't needed and is pure attack surface.
+DJANGO_ADMIN_URL = env("DJANGO_ADMIN_URL", default="admin/")
