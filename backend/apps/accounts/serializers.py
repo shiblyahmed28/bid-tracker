@@ -1,10 +1,26 @@
+import hashlib
+
 from django.contrib.auth.models import update_last_login
+from django.core.cache import cache
 from rest_framework import serializers
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, TokenObtainSerializer
 from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import User, UserSession
+
+# ROTATE_REFRESH_TOKENS + BLACKLIST_AFTER_ROTATION (settings.SIMPLE_JWT) means the
+# first of two refresh calls presenting the *same* refresh token wins the
+# rotation and blacklists it; a second call racing it (a client without
+# single-flight refresh, a retried request, two tabs) would otherwise get a
+# hard "token is blacklisted" 401 for asking the identical thing a moment
+# later. Caching the response for a few seconds, keyed by the presented
+# token's jti, absorbs that — it is NOT a security relaxation: a *different*
+# stale token, or this same token presented again after the window, still
+# hits the real blacklist check below and is rejected. Genuine token reuse
+# (an attacker replaying a token well after it was rotated) is unaffected.
+REFRESH_IDEMPOTENCY_TTL_SECONDS = 20
 
 
 class MeSerializer(serializers.ModelSerializer):
@@ -168,7 +184,21 @@ class SessionAwareTokenRefreshSerializer(serializers.Serializer):
     token_class = RefreshToken
 
     def validate(self, attrs):
-        refresh = self.token_class(attrs["refresh"])
+        raw = attrs["refresh"]
+        cache_key = self._idempotency_key(raw)
+
+        if cache_key:
+            cached = cache.get(cache_key)
+            if cached is not None:
+                # Someone already rotated this exact token within the window —
+                # hand back the same pair. Nothing new to persist: the
+                # UserSession row was already moved onto new_jti by that
+                # original call, so leave old_jti/new_jti unset (see RefreshView).
+                self.old_jti = None
+                self.new_jti = None
+                return cached
+
+        refresh = self.token_class(raw)
         self.old_jti = refresh.payload.get(jwt_settings.JTI_CLAIM)
 
         if jwt_settings.BLACKLIST_AFTER_ROTATION:
@@ -183,7 +213,22 @@ class SessionAwareTokenRefreshSerializer(serializers.Serializer):
         refresh["session_jti"] = refresh[jwt_settings.JTI_CLAIM]
         self.new_jti = refresh[jwt_settings.JTI_CLAIM]
 
-        return {"access": str(refresh.access_token), "refresh": str(refresh)}
+        result = {"access": str(refresh.access_token), "refresh": str(refresh)}
+        if cache_key:
+            cache.set(cache_key, result, timeout=REFRESH_IDEMPOTENCY_TTL_SECONDS)
+        return result
+
+    def _idempotency_key(self, raw):
+        """jti of the presented token, unverified — used only to build a cache
+        key. A cache miss always falls through to the real, fully-verified
+        rotation below, so an unsigned/forged peek here can't bypass anything."""
+        try:
+            jti = self.token_class(raw, verify=False).payload.get(jwt_settings.JTI_CLAIM)
+        except TokenError:
+            return None
+        if not jti:
+            return None
+        return "refresh-idem:" + hashlib.sha256(jti.encode()).hexdigest()
 
 
 class UserSessionSerializer(serializers.ModelSerializer):

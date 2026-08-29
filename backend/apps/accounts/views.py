@@ -133,9 +133,10 @@ class RefreshView(TokenViewBase):
         except TokenError as e:
             raise InvalidToken(e.args[0])
 
-        UserSession.objects.filter(refresh_jti=serializer.old_jti, revoked_at__isnull=True).update(
-            refresh_jti=serializer.new_jti, last_seen_at=timezone.now()
-        )
+        if serializer.new_jti:
+            UserSession.objects.filter(refresh_jti=serializer.old_jti, revoked_at__isnull=True).update(
+                refresh_jti=serializer.new_jti, last_seen_at=timezone.now()
+            )
         return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
 

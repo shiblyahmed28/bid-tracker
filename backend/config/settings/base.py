@@ -145,6 +145,13 @@ AXES_LOCKOUT_PARAMETERS = ["username"]
 AXES_USERNAME_FORM_FIELD = "email"
 AXES_RESET_ON_SUCCESS = True
 
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": env("REDIS_URL", default="redis://redis:6379/0"),
+    }
+}
+
 # Celery
 CELERY_BROKER_URL = env("REDIS_URL", default="redis://redis:6379/0")
 CELERY_RESULT_BACKEND = env("REDIS_URL", default="redis://redis:6379/0")
