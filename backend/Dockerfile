@@ -20,6 +20,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Fail the build here, not at PDF-export time in production, if a WeasyPrint
+# system dependency (libpango/libcairo/libgdk-pixbuf) is missing.
+RUN python -c "from weasyprint import HTML; HTML(string='<h1>build check</h1>').write_pdf('/tmp/weasyprint-build-check.pdf')" \
+    && rm /tmp/weasyprint-build-check.pdf
+
 COPY . .
 
 # Match the host dev user's uid/gid (1000) so the bind-mounted source stays

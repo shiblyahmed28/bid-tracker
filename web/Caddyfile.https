@@ -1,0 +1,62 @@
+# TLS mode — Let's Encrypt IP-address certificate for {$SITE_ADDRESS}.
+#
+# No domain exists; SITE_ADDRESS is a bare IP. Two things that only matter
+# for bare-IP HTTPS, not normal domain setups:
+#
+#   1. Port 80 belongs to another application on this VM, so HTTP-01 is
+#      unavailable — `disable_http_challenge` forces TLS-ALPN-01, which only
+#      needs the port this site already listens on (mapped to host :443).
+#   2. Browsers send no SNI when connecting to a bare IP, so without
+#      `default_sni` Caddy has nothing to match the connection to and won't
+#      serve this site's certificate.
+#
+# `profile shortlived` is required — Let's Encrypt only issues IP-address
+# certificates under this profile (160h lifetime, renews far more often than
+# a normal cert; Caddy automates that renewal on its own, and the separate
+# `certwatch` service in docker-compose.prod.yml is a monitor of last
+# resort in case that ever silently fails).
+
+{
+	default_sni {$SITE_ADDRESS}
+	email {$ACME_EMAIL}
+}
+
+{$SITE_ADDRESS}:8080 {
+	tls {
+		issuer acme {
+			profile shortlived
+			disable_http_challenge
+		}
+	}
+
+	encode gzip
+
+	request_body {
+		max_size 20MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy same-origin
+	}
+
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle /admin/* {
+		reverse_proxy backend:8000
+	}
+
+	handle /static/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		root * /srv/www
+		try_files {path} /index.html
+		file_server
+	}
+}

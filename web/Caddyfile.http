@@ -1,0 +1,35 @@
+# Plain-HTTP mode — used only to verify the stack comes up before switching
+# to TLS. See docs/DEPLOY.md "Mode 1: HTTP verification (port 8090)".
+# No `tls` block here on purpose: this file never talks to Let's Encrypt.
+
+:8080 {
+	encode gzip
+
+	request_body {
+		max_size 20MB
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy same-origin
+	}
+
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle /admin/* {
+		reverse_proxy backend:8000
+	}
+
+	handle /static/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		root * /srv/www
+		try_files {path} /index.html
+		file_server
+	}
+}

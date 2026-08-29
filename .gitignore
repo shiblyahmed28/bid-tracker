@@ -1,6 +1,10 @@
 # Secrets
 .env
+.env.prod
 backend/secrets/
+
+# Backups
+backups/
 
 # Python
 __pycache__/

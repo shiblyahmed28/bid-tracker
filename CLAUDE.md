@@ -61,9 +61,15 @@ Private Google Sheet ──(service account, read + one narrow write)──▶ D
 | Email | Django SMTP → Gmail | 2FA + 16-char App Password |
 | PDF | WeasyPrint | Server-side, landscape A4 |
 | UA parsing | `user-agents` (PyPI) | Device type, brand, browser, OS |
-| Deploy | Docker Compose | Ubuntu only |
+| Deploy | Docker Compose | See below — dev and prod OSes differ |
 
-**Development and deployment are Ubuntu-only.** Do not write Windows or macOS instructions.
+**Development is Ubuntu-only.** Do not write Windows or macOS instructions.
+
+**Production is a CentOS 7 VM** (`36.255.69.114`), not Ubuntu: Docker 20.10.21, SELinux
+disabled, no firewalld, **no git installed**. Deployment ships by `tar` + `scp`, not `git pull` —
+see `docs/DEPLOY.md`. The VM already runs a production GRP system — **nginx on port 80 and
+Tomcat on 8080, plus a system PostgreSQL 11 on port 5432 — none of which this project may touch.**
+Only port 443 (and a temporary port 8090 for pre-TLS verification) belong to this app.
 
 ---
 
@@ -628,7 +634,11 @@ resources and engagement period is demo-only and must not be ported.
 - ❌ Showing sync history or the audit log to a non-admin.
 - ❌ Exposing password hashes, or letting an admin read an existing password.
 - ❌ Committing `.env`, the service-account JSON, or the Gmail App Password.
-- ❌ Windows or macOS setup instructions. Ubuntu only.
+- ❌ Windows or macOS setup instructions. Development is Ubuntu only.
+- ❌ Assuming the production VM is Ubuntu, has git, or is otherwise like the dev box — it's
+  CentOS 7, no git, tar+scp deploys. See §3 and `docs/DEPLOY.md`.
+- ❌ Touching nginx (port 80), Tomcat (8080) or the system PostgreSQL 11 (5432) on the prod VM —
+  they belong to another application already running there.
 
 ---
 

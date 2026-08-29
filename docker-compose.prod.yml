@@ -1,0 +1,154 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    env_file: .env.prod
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # $$ (not $), and no separate `environment:` block above duplicating
+      # env_file — both are deliberate. `${VAR}` gets resolved by Compose
+      # itself at parse time from a top-level .env/--env-file, which is NOT
+      # what env_file: .env.prod feeds; `$$VAR` instead reaches the
+      # container's own shell at runtime, which does have POSTGRES_USER/DB
+      # from env_file. See docs/DEPLOY.md for why every command here still
+      # needs `--env-file .env.prod` regardless (the `web` port mapping
+      # below has no runtime-shell escape hatch).
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env.prod
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+    command: >
+      sh -c "python manage.py collectstatic --noinput && \
+             exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60 --access-logfile - --error-logfile -"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('localhost', 8000), 3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    logging: *default-logging
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env.prod
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+    command: celery -A config worker -l info
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME --timeout 5 | grep -q OK"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 30s
+    logging: *default-logging
+
+  beat:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env.prod
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+    command: celery -A config beat -l info
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # celery beat doesn't answer `inspect ping` (that's for workers), and
+      # python:3.12-slim has no procps (no pgrep/ps) — checking PID 1's own
+      # cmdline needs neither and only proves the process is alive, not
+      # that it's still ticking.
+      test: ["CMD-SHELL", "grep -q beat /proc/1/cmdline || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging: *default-logging
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    restart: unless-stopped
+    env_file: .env.prod
+    # This is the ONLY service publishing a host port. TLS_ENABLED and
+    # WEB_PUBLISHED_PORT together pick the mode — see .env.prod.example and
+    # docs/DEPLOY.md for the HTTP-then-TLS rollout sequence.
+    #   HTTP verification: TLS_ENABLED=0, WEB_PUBLISHED_PORT=8090
+    #   TLS (final):        TLS_ENABLED=1, WEB_PUBLISHED_PORT=443
+    # The container always listens internally on :8080 in both modes; only
+    # which Caddyfile is loaded, and which host port maps to it, changes.
+    ports:
+      - "${WEB_PUBLISHED_PORT}:8080"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      # 127.0.0.1, not localhost — Caddy's admin API only binds IPv4, and
+      # wget in this image resolves "localhost" to ::1 first and fails.
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:2019/config/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default-logging
+
+  # Daily Let's Encrypt IP-certificate expiry watchdog. Deliberately outside
+  # the Django app — this is ops monitoring, not a business-logic concern,
+  # and it must keep working even if the app itself is unhealthy. No-ops
+  # (logs and sleeps) when TLS_ENABLED=0, since there's no cert to watch in
+  # HTTP-verification mode. See docs/DEPLOY.md "Verifying certificate
+  # renewal".
+  certwatch:
+    build:
+      context: ./deploy/certwatch
+    restart: unless-stopped
+    env_file: .env.prod
+    depends_on:
+      - web
+    logging: *default-logging
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
