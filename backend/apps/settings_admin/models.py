@@ -166,6 +166,63 @@ class SheetAppendSettings(models.Model):
         return f"Sheet append: {'on' if self.enabled else 'off'}"
 
 
+class SyncScheduleSettings(models.Model):
+    """Admin-configurable interval for the automatic scheduled sync — a
+    single-row singleton, default 8 hours (matching the original fixed
+    0/8/16 Dhaka schedule). Celery Beat itself still ticks frequently (every
+    15 minutes, config/settings/base.py); apps.sync.tasks.sync_sheet_task
+    checks this value against the last scheduled run's start time and only
+    actually syncs once that many hours have elapsed — so a change here
+    takes effect on the next tick, no restart needed. Manual "Fetch data"
+    triggers are never gated by this — only the automatic schedule is."""
+
+    interval_hours = models.PositiveIntegerField(default=8)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return f"Sync every {self.interval_hours}h"
+
+
+class EmailServiceSettings(models.Model):
+    """Global kill switch for all outbound email — a single-row singleton,
+    default ON (email already works today; this is an override, not an
+    opt-in). Checked at both real send paths (apps.notifications.emails._send
+    and apps.accounts.views._send_password_reset_email, which bypasses that
+    helper entirely) — turning this off logs every attempt to SentEmail as a
+    failure with a clear reason, rather than either silently sending or
+    silently vanishing. Never affects in-app notifications, only email."""
+
+    enabled = models.BooleanField(default=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return f"Email service: {'on' if self.enabled else 'off'}"
+
+
 class DeadlineReminderSent(models.Model):
     """Per-bid-per-rule dedup (§16's old single `deadline_alert_sent_at`
     couldn't represent "already sent the 7-day one but not the 14-day one")."""

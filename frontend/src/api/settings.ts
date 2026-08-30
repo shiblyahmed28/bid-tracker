@@ -205,6 +205,38 @@ export function updateSheetAppendSettings(enabled: boolean) {
   return api.patch<SheetAppendSettingsData>("/settings/sheet-append/", { enabled }).then((r) => r.data);
 }
 
+// ---------- Sync schedule ----------
+
+export interface SyncScheduleSettingsData {
+  interval_hours: number;
+  updated_by_email: string | null;
+  updated_at: string;
+}
+
+export function fetchSyncScheduleSettings() {
+  return api.get<SyncScheduleSettingsData>("/settings/sync-schedule/").then((r) => r.data);
+}
+
+export function updateSyncScheduleSettings(interval_hours: number) {
+  return api.patch<SyncScheduleSettingsData>("/settings/sync-schedule/", { interval_hours }).then((r) => r.data);
+}
+
+// ---------- Email service ----------
+
+export interface EmailServiceSettingsData {
+  enabled: boolean;
+  updated_by_email: string | null;
+  updated_at: string;
+}
+
+export function fetchEmailServiceSettings() {
+  return api.get<EmailServiceSettingsData>("/settings/email-service/").then((r) => r.data);
+}
+
+export function updateEmailServiceSettings(enabled: boolean) {
+  return api.patch<EmailServiceSettingsData>("/settings/email-service/", { enabled }).then((r) => r.data);
+}
+
 export function fetchSettingsTeams() {
   return api.get<SettingsTeam[]>("/settings/teams/").then((r) => r.data);
 }

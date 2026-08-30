@@ -37,8 +37,22 @@ def _send_password_reset_email(target, subject, force_change, actor_email):
     """Bypasses apps.notifications.emails._send() entirely (no HTML template,
     just a plain-text admin notice) — logged to SentEmail here directly so
     §Phase 21 item 4's "every message" log still covers this second,
-    independent send path, not just the templated ones."""
+    independent send path, not just the templated ones. Also checks the
+    same EmailServiceSettings kill switch apps.notifications.emails._send
+    does — this path bypasses that helper entirely, so the gate has to be
+    repeated here rather than shared."""
     from apps.notifications.models import SentEmail
+    from apps.settings_admin.models import EmailServiceSettings
+
+    if not EmailServiceSettings.load().enabled:
+        SentEmail.objects.create(
+            to_email=target.email,
+            subject=subject,
+            kind=SentEmail.Kind.PASSWORD_RESET,
+            success=False,
+            error="Email service is turned off (Master Settings > Sheet sync).",
+        )
+        return False
 
     message = (
         f"An administrator ({actor_email}) reset your password.\n\n"

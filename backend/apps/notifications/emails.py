@@ -14,7 +14,24 @@ def _send(subject, template_prefix, context, to_email, include_unsubscribe=True)
     failure — never the rendered body. `fail_silently` used to swallow send
     errors entirely with no record of them; catching the exception here
     keeps that same external behavior (callers still never see it raised)
-    while capturing the error message for the log."""
+    while capturing the error message for the log.
+
+    Checked against EmailServiceSettings' global kill switch first — turning
+    that off logs every attempt here as a failure with a clear reason,
+    rather than either sending anyway or silently doing nothing."""
+    from apps.settings_admin.models import EmailServiceSettings
+
+    if not EmailServiceSettings.load().enabled:
+        SentEmail.objects.create(
+            to_email=to_email,
+            subject=subject,
+            kind=template_prefix,
+            bid=context.get("bid"),
+            success=False,
+            error="Email service is turned off (Master Settings > Sheet sync).",
+        )
+        return
+
     if include_unsubscribe:
         context = {**context, "unsubscribe_url": f"{settings.FRONTEND_BASE_URL}/notifications"}
     text_body = render_to_string(f"notifications/{template_prefix}.txt", context)

@@ -219,6 +219,20 @@ doesn't block bid creation — the bid is flagged pending and retried later (its
 sweep, independent of the read-side sync), and pending items surface in Sync History (admin-only).
 Every successful append writes an audit entry naming the sheet row number.
 
+### Reset all bid data (danger zone)
+
+Master Settings → Sheet sync has an admin-only "Reset all bid data" action (`reset_bid_data`
+capability, `POST /sync/reset/`), for switching to a different sheet or clearing out mismatched
+data: it deletes **every** bid — sheet-sourced and app-created alike, with their engagements and
+cost lines — then immediately re-syncs fresh from the sheet in the same transaction, so a failure
+rolls back to nothing having happened. Every row is "new" again by definition, so this run always
+suppresses notifications (`run_sync(..., notify=False)`) — otherwise a full reset would mean one
+immediate email per user per bid. Client/Person/Team reference records are untouched. Requires
+`{"confirm": true}` in the request body and writes its own audit entry (deleted count → created
+count) distinct from the per-row create entries the resync itself generates. This is a one-time,
+full-wipe utility — it does not change how ordinary syncs match or order rows (still by `uid` only,
+never by the sheet's own row position).
+
 ---
 
 ## 7. New fields — not in the sheet
@@ -341,8 +355,13 @@ and flag for review rather than rejecting the row.
 
 ## 9. Sync algorithm
 
-Every 8 hours (00:00, 08:00, 16:00 Asia/Dhaka) via Celery Beat, and on demand via
-`POST /api/v1/sync/run` (admin only).
+Every N hours (default 8, originally the fixed 00:00/08:00/16:00 Asia/Dhaka slots) via Celery
+Beat, and on demand via `POST /api/v1/sync/run` (admin only). N is admin-configurable at runtime
+(Master Settings → Sheet sync → Sync schedule, `SyncScheduleSettings.interval_hours`, `manage_sync_schedule`,
+`GET/PATCH /settings/sync-schedule/`) — Beat itself now ticks every 15 minutes, and
+`apps.sync.tasks.sync_sheet_task` only actually calls `run_sync()` once that many hours have
+elapsed since the last scheduled run, so a change takes effect on the next tick with no restart.
+Manual triggers are a separate path and are never subject to this interval.
 
 ```
 1  Open a SyncRun (trigger = scheduled | manual, actor).
@@ -472,6 +491,9 @@ SentEmail         to_email, subject, kind, bid FK null, success bool,          #
 | Toggle and send welcome emails (`manage_welcome_emails`) | ❌ | ❌ | ✅ |
 | View the email delivery log (`view_email_log`) | ❌ | ❌ | ✅ |
 | Toggle sheet append-back (`manage_sheet_append`, §Phase 23) | ❌ | ❌ | ✅ |
+| Reset all bid data (`reset_bid_data`) | ❌ | ❌ | ✅ |
+| Change the sync interval (`manage_sync_schedule`) | ❌ | ❌ | ✅ |
+| Toggle the global email kill switch (`manage_email_service`) | ❌ | ❌ | ✅ |
 
 Enforce with DRF permission classes on **every** viewset. Never rely on a hidden frontend button.
 Sync history and the audit log are admin-only. This is explicit and not negotiable.
@@ -669,6 +691,18 @@ paths: the templated ones (`apps.notifications.emails._send`) and the plain-text
 reset email, which bypasses that helper entirely. Admin-only (`view_email_log` capability),
 filterable by kind/success/recipient — the answer to "did that person get notified?".
 
+### Email service kill switch
+
+Master Settings → Sheet sync → Email service (`EmailServiceSettings`, `manage_email_service`,
+`GET/PATCH /settings/email-service/`) is a single global on/off switch, default **on**, checked at
+both real send paths — `apps.notifications.emails._send` and the password-reset send, which
+bypasses that helper entirely (same two paths §Phase 21 item 4's delivery log already covers).
+Turning it off blocks every outbound email — new-bid alerts, change digests, deadline reminders,
+welcome emails, password resets — regardless of any other setting (`WelcomeEmailSettings`, a
+user's own `email_newbid`/`email_digest`/`email_deadline`, notification policies). Never affects
+in-app notifications. A blocked attempt still writes a `SentEmail` row, marked failed with a clear
+reason, so "did that person get notified?" stays answerable even with the switch off.
+
 ### DEFAULT_FROM_EMAIL vs. the SMTP account (Phase 21 item 3)
 
 Gmail requires the `From:` address to match the authenticated account (`EMAIL_HOST_USER`) or a
@@ -711,6 +745,7 @@ GET    /dashboard/classic/      ?from=&to=
 POST   /sync/run/ · GET /sync/runs/ · GET /sync/quarantine/     admin
 GET    /sync/conflicts/ · POST /sync/conflicts/{id}/resolve/    {"choose":"sheet"|"local"}
 GET    /sync/pending-appends/    admin — bids awaiting their append_row retry (§Phase 23)
+POST   /sync/reset/    {"confirm": true}    reset_bid_data — danger zone, delete all + fresh resync
 
 GET    /notifications/ · POST /notifications/{id}/read/
 GET/PATCH /notifications/settings/
@@ -730,6 +765,8 @@ POST   /settings/engagements/{id}/welcome-email/                  manage_welcome
 GET    /notifications/sent-log/     ?kind=&success=&recipient=    view_email_log (§Phase 21 item 4)
 
 GET/PATCH /settings/sheet-append/   {"enabled": bool}            manage_sheet_append (§Phase 23)
+GET/PATCH /settings/sync-schedule/  {"interval_hours": 1-168}     manage_sync_schedule
+GET/PATCH /settings/email-service/  {"enabled": bool}            manage_email_service — global kill switch
 ```
 
 **Default when no dates given: submission date from today−7 to today+7.**
@@ -755,7 +792,6 @@ REDIS_URL=redis://redis:6379/0
 GOOGLE_SHEET_ID=1VH8VTGMsr9oyU7514PtjF4SIm_I2jXzeL0EE1N6Gz-4
 GOOGLE_SHEET_TAB=bids
 GOOGLE_SERVICE_ACCOUNT_FILE=/run/secrets/service-account.json
-SYNC_INTERVAL_HOURS=8
 
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587

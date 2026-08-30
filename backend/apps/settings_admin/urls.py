@@ -9,6 +9,7 @@ from .views import (
     ChoiceValueRenameView,
     ChoiceValueReorderView,
     DeadlineReminderRuleViewSet,
+    EmailServiceSettingsView,
     NotificationPolicyViewSet,
     PersonDuplicatesView,
     PersonEngagementsView,
@@ -18,6 +19,7 @@ from .views import (
     SettingsPersonViewSet,
     SettingsTeamViewSet,
     SheetAppendSettingsView,
+    SyncScheduleSettingsView,
     UserCapabilitiesView,
     WelcomeEmailSettingsView,
 )
@@ -69,4 +71,6 @@ urlpatterns = [
         name="send-welcome-email",
     ),
     path("settings/sheet-append/", SheetAppendSettingsView.as_view(), name="sheet-append-settings"),
+    path("settings/sync-schedule/", SyncScheduleSettingsView.as_view(), name="sync-schedule-settings"),
+    path("settings/email-service/", EmailServiceSettingsView.as_view(), name="email-service-settings"),
 ] + router.urls

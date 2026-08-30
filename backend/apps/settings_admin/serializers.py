@@ -8,8 +8,10 @@ from .models import (
     ChoiceList,
     ChoiceValue,
     DeadlineReminderRule,
+    EmailServiceSettings,
     NotificationPolicy,
     SheetAppendSettings,
+    SyncScheduleSettings,
     UserCapability,
     WelcomeEmailSettings,
 )
@@ -161,6 +163,25 @@ class SheetAppendSettingsSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SheetAppendSettings
+        fields = ["enabled", "updated_by_email", "updated_at"]
+        read_only_fields = ["updated_by_email", "updated_at"]
+
+
+class SyncScheduleSettingsSerializer(serializers.ModelSerializer):
+    updated_by_email = serializers.EmailField(source="updated_by.email", read_only=True, default=None)
+    interval_hours = serializers.IntegerField(min_value=1, max_value=168)
+
+    class Meta:
+        model = SyncScheduleSettings
+        fields = ["interval_hours", "updated_by_email", "updated_at"]
+        read_only_fields = ["updated_by_email", "updated_at"]
+
+
+class EmailServiceSettingsSerializer(serializers.ModelSerializer):
+    updated_by_email = serializers.EmailField(source="updated_by.email", read_only=True, default=None)
+
+    class Meta:
+        model = EmailServiceSettings
         fields = ["enabled", "updated_by_email", "updated_at"]
         read_only_fields = ["updated_by_email", "updated_at"]
 

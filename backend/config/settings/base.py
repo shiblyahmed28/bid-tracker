@@ -166,8 +166,12 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_BEAT_SCHEDULE = {
     "sync-google-sheet": {
+        # Ticks every 15 minutes; sync_sheet_task itself decides whether
+        # SyncScheduleSettings.interval_hours (Master Settings, default 8)
+        # has actually elapsed since the last scheduled run before doing
+        # anything — this is what makes the interval editable at runtime.
         "task": "apps.sync.tasks.sync_sheet_task",
-        "schedule": crontab(hour="0,8,16", minute=0),
+        "schedule": crontab(minute="*/15"),
     },
     "send-deadline-reminders": {
         "task": "apps.settings_admin.tasks.send_deadline_reminders_task",
@@ -183,7 +187,6 @@ CELERY_BEAT_SCHEDULE = {
 GOOGLE_SHEET_ID = env("GOOGLE_SHEET_ID", default="")
 GOOGLE_SHEET_TAB = env("GOOGLE_SHEET_TAB", default="bids")
 GOOGLE_SERVICE_ACCOUNT_FILE = env("GOOGLE_SERVICE_ACCOUNT_FILE", default="")
-SYNC_INTERVAL_HOURS = env.int("SYNC_INTERVAL_HOURS", default=8)
 
 # Email
 EMAIL_HOST = env("EMAIL_HOST", default="smtp.gmail.com")

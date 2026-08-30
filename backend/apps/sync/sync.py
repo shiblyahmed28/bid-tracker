@@ -75,11 +75,16 @@ def normalize_row(row, remarks_col_index):
     }
 
 
-def run_sync(trigger, actor=None, dry_run=False):
+def run_sync(trigger, actor=None, dry_run=False, notify=True):
     """Returns (sync_run, counts). For a dry run, sync_run is fully populated
     in memory but every write — SyncRun, Bid, Person, Client, QuarantineRow,
     SyncConflict, AuditEntry, and the sheet's uid backfill — is rolled back
-    or skipped, per "writes nothing" (Phase 5 acceptance)."""
+    or skipped, per "writes nothing" (Phase 5 acceptance).
+
+    notify=False suppresses every new-bid/field-change notification this run
+    would otherwise send — used by the Master Settings "reset bid data"
+    action (apps.sync.views.SyncResetView), where every row is freshly
+    recreated and would otherwise mean one immediate email per user per bid."""
     counts = Counter()
 
     gc = get_client()
@@ -154,7 +159,7 @@ def run_sync(trigger, actor=None, dry_run=False):
                     action=AuditEntry.Action.BID_CREATE,
                     bid=new_bid,
                 )
-                if not dry_run:
+                if not dry_run and notify:
                     # Real SMTP sends aren't rolled back with the transaction —
                     # never let a dry run's immediate new-bid email escape.
                     notify_new_bid(new_bid)
@@ -186,7 +191,7 @@ def run_sync(trigger, actor=None, dry_run=False):
 
                 bid.apply_change(field_name, new_value, actor=None)
                 changed_any = True
-                if not dry_run:
+                if not dry_run and notify:
                     # Same rollback-safety reasoning as notify_new_bid above —
                     # a dry run's policy-event email must never actually send.
                     notify_policy_transition(

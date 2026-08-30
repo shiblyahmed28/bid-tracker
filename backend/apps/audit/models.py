@@ -36,6 +36,9 @@ class AuditEntry(models.Model):
         WELCOME_EMAIL_SETTINGS = "welcome_email_settings", "Welcome email setting changed"
         SHEET_APPEND = "sheet_append", "Bid appended to sheet"
         SHEET_APPEND_SETTINGS = "sheet_append_settings", "Sheet append setting changed"
+        BID_DATA_RESET = "bid_data_reset", "All bid data reset and resynced from sheet"
+        SYNC_SCHEDULE_SETTINGS = "sync_schedule_settings", "Sync schedule interval changed"
+        EMAIL_SERVICE_SETTINGS = "email_service_settings", "Email service setting changed"
 
     # actor is null with actor_label="System (sync)" for automated changes.
     actor = models.ForeignKey(

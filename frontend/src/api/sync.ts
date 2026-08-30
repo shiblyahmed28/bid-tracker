@@ -74,3 +74,14 @@ export function fetchPendingSheetAppends(page = 1, pageSize = 10) {
     .get<PaginatedResponse<PendingSheetAppendItem>>("/sync/pending-appends/", { params: { page, page_size: pageSize } })
     .then((r) => r.data);
 }
+
+export interface SyncResetResult {
+  deleted: number;
+  sync_run: SyncRunItem;
+}
+
+/** POST /sync/reset/ — admin-only danger-zone action: deletes every bid
+ * (app-created and sheet-sourced alike) and resyncs fresh from the sheet. */
+export function resetBidData() {
+  return api.post<SyncResetResult>("/sync/reset/", { confirm: true }).then((r) => r.data);
+}

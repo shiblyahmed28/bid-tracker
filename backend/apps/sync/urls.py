@@ -5,6 +5,7 @@ from .views import (
     PendingSheetAppendListView,
     QuarantineRowListView,
     SyncConflictViewSet,
+    SyncResetView,
     SyncRunListView,
     SyncRunTriggerView,
 )
@@ -14,6 +15,7 @@ router.register("sync/conflicts", SyncConflictViewSet, basename="sync-conflict")
 
 urlpatterns = [
     path("sync/run/", SyncRunTriggerView.as_view(), name="sync-run"),
+    path("sync/reset/", SyncResetView.as_view(), name="sync-reset"),
     path("sync/runs/", SyncRunListView.as_view(), name="sync-runs"),
     path("sync/quarantine/", QuarantineRowListView.as_view(), name="sync-quarantine"),
     path("sync/pending-appends/", PendingSheetAppendListView.as_view(), name="sync-pending-appends"),

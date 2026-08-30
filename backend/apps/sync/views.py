@@ -1,6 +1,6 @@
 from decimal import Decimal, InvalidOperation
 
-from django.db import models as dj_models
+from django.db import models as dj_models, transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_time
 from rest_framework import generics, status
@@ -44,6 +44,50 @@ class SyncRunTriggerView(APIView):
             user_agent=get_user_agent(request),
         )
         return Response(SyncRunSerializer(sync_run).data, status=status.HTTP_201_CREATED)
+
+
+class SyncResetView(APIView):
+    """POST /sync/reset/ — admin-only "danger zone" action (Master Settings
+    > Sheet sync). Deletes every Bid record — sheet-sourced AND app-created —
+    then immediately re-syncs fresh from the sheet in the same transaction,
+    so a failure rolls back to nothing having happened at all. Every row is
+    "new" again by definition, so notifications are suppressed for this run
+    (run_sync(..., notify=False)) — otherwise a full reset would mean one
+    immediate email per user per bid, exactly the mass-send problem this
+    exists to let an admin recover from cleanly. Client/Person/Team
+    reference records are left untouched; resolve_client/resolve_person
+    reuse or recreate them as any ordinary sync would.
+
+    Requires {"confirm": true} in the body — the frontend's own confirmation
+    dialog is the real gate, but a destructive action this size doesn't get
+    to fire from an empty POST body."""
+
+    permission_classes = [HasCapability("reset_bid_data")]
+
+    def post(self, request):
+        if request.data.get("confirm") is not True:
+            return Response({"detail": "Must confirm this action."}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            deleted_count = Bid.all_objects.count()
+            Bid.all_objects.all().delete()
+            sync_run, counts = run_sync(trigger=SyncRun.Trigger.MANUAL, actor=request.user, notify=False)
+
+        AuditEntry.objects.create(
+            actor=request.user,
+            actor_label=request.user.email,
+            action=AuditEntry.Action.BID_DATA_RESET,
+            field="bid_count",
+            old_value=str(deleted_count),
+            new_value=str(counts.get("created", 0)),
+            ip=get_client_ip(request),
+            user_agent=get_user_agent(request),
+        )
+
+        return Response(
+            {"deleted": deleted_count, "sync_run": SyncRunSerializer(sync_run).data},
+            status=status.HTTP_200_OK,
+        )
 
 
 class SyncRunListView(generics.ListAPIView):

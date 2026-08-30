@@ -14,8 +14,10 @@ from .models import (
     ChoiceList,
     ChoiceValue,
     DeadlineReminderRule,
+    EmailServiceSettings,
     NotificationPolicy,
     SheetAppendSettings,
+    SyncScheduleSettings,
     UserCapability,
     WelcomeEmailSettings,
 )
@@ -26,6 +28,7 @@ from .serializers import (
     ChoiceValueReorderSerializer,
     ChoiceValueSerializer,
     DeadlineReminderRuleSerializer,
+    EmailServiceSettingsSerializer,
     NotificationPolicySerializer,
     PersonEngagementSerializer,
     PersonMergeSerializer,
@@ -33,6 +36,7 @@ from .serializers import (
     SettingsPersonSerializer,
     SettingsTeamSerializer,
     SheetAppendSettingsSerializer,
+    SyncScheduleSettingsSerializer,
     UserCapabilityGrantSerializer,
     UserCapabilityOverrideSerializer,
     WelcomeEmailSettingsSerializer,
@@ -434,6 +438,65 @@ class SheetAppendSettingsView(APIView):
                 new_value=str(obj.enabled),
             )
         return Response(SheetAppendSettingsSerializer(obj).data)
+
+
+class SyncScheduleSettingsView(APIView):
+    """GET/PATCH /settings/sync-schedule/ — how often the automatic
+    scheduled sync runs, in hours (default 8, matching the original fixed
+    0/8/16 Dhaka schedule). Takes effect on the next Beat tick (every 15
+    minutes, config/settings/base.py) — no restart needed. Never affects
+    manual "Fetch data" triggers."""
+
+    permission_classes = [SettingsPermission("manage_sync_schedule")]
+
+    def get(self, request):
+        return Response(SyncScheduleSettingsSerializer(SyncScheduleSettings.load()).data)
+
+    def patch(self, request):
+        obj = SyncScheduleSettings.load()
+        was_interval = obj.interval_hours
+        serializer = SyncScheduleSettingsSerializer(obj, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        obj = serializer.save(updated_by=request.user)
+
+        if obj.interval_hours != was_interval:
+            _audit(
+                request,
+                AuditEntry.Action.SYNC_SCHEDULE_SETTINGS,
+                field="interval_hours",
+                old_value=str(was_interval),
+                new_value=str(obj.interval_hours),
+            )
+        return Response(SyncScheduleSettingsSerializer(obj).data)
+
+
+class EmailServiceSettingsView(APIView):
+    """GET/PATCH /settings/email-service/ — global kill switch for all
+    outbound email, default ON. Turning this off doesn't touch in-app
+    notifications, only email delivery (apps.notifications.emails._send and
+    the password-reset send path, both of which check this directly)."""
+
+    permission_classes = [SettingsPermission("manage_email_service")]
+
+    def get(self, request):
+        return Response(EmailServiceSettingsSerializer(EmailServiceSettings.load()).data)
+
+    def patch(self, request):
+        obj = EmailServiceSettings.load()
+        was_enabled = obj.enabled
+        serializer = EmailServiceSettingsSerializer(obj, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        obj = serializer.save(updated_by=request.user)
+
+        if obj.enabled != was_enabled:
+            _audit(
+                request,
+                AuditEntry.Action.EMAIL_SERVICE_SETTINGS,
+                field="enabled",
+                old_value=str(was_enabled),
+                new_value=str(obj.enabled),
+            )
+        return Response(EmailServiceSettingsSerializer(obj).data)
 
 
 class SendWelcomeEmailView(APIView):
