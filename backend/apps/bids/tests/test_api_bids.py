@@ -246,6 +246,32 @@ class TestBidCreateRoleMatrix:
         assert response.data["stage"] == ""
         assert response.data["team"] is None
 
+    def test_enum_fields_are_normalized_to_match_sync_convention(self, api_client, editor):
+        """A value typed free-text here must land the same way norm_enum
+        (§8) would from a sheet sync — otherwise "Not Submitted" here and
+        "NOT SUBMITTED" from the sheet fragment into two distinct values in
+        every filter dropdown and choice list."""
+        login(api_client, editor, "EditorPass123!")
+        response = api_client.post(
+            "/api/v1/bids/",
+            self.create_payload(
+                stage=" rfp ",
+                submission_status="Not Submitted",
+                result="pending",
+                security_mode="bank guarantee",
+                initiation_mode="sales effort",
+                procurement_type="goods",
+            ),
+            format="json",
+        )
+        assert response.status_code == 201
+        assert response.data["stage"] == "RFP"
+        assert response.data["submission_status"] == "NOT SUBMITTED"
+        assert response.data["result"] == "PENDING"
+        assert response.data["security_mode"] == "BANK GUARANTEE"
+        assert response.data["initiation_mode"] == "SALES EFFORT"
+        assert response.data["procurement_type"] == "GOODS"
+
 
 @pytest.mark.django_db
 class TestBidUpdateRoleMatrix:

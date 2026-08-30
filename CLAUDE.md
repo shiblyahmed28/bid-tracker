@@ -528,7 +528,7 @@ A read-only mirror of the `bids` worksheet. No editing here; editing lives on th
 - **Pagination** — 50 rows per page by default, with a numbered page index at the bottom
   (first, ellipsis, neighbours, ellipsis, last) plus a page-size selector (25/50/100/200).
   **Server-side.** Never ship 575 rows to the browser.
-- **Column picker** — all 29 columns can be shown or hidden, grouped as
+- **Column picker** — all 30 columns can be shown or hidden, grouped as
   Core / New fields / People / Dates / Financial / Status. Defaults to the 11 important ones:
   `SL, Client, Team, Stage, Bid manager, Engaged resources, Published, Submission, BG expiry,
   Submission status, Result`. Selection persists per user. Financial gained a **Management cost**

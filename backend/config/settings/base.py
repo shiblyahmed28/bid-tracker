@@ -133,6 +133,11 @@ SIMPLE_JWT = {
 }
 
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=["http://localhost:5173"])
+# Without this, Content-Disposition isn't on the CORS-safelisted response
+# header set, so the frontend's cross-origin fetch/axios calls can never read
+# it — every export (register CSV/PDF, per-bid PDF) silently falls back to
+# its default filename instead of the server-suggested one.
+CORS_EXPOSE_HEADERS = ["Content-Disposition"]
 
 ALLOWED_EMAIL_DOMAIN = env("ALLOWED_EMAIL_DOMAIN", default="spectrum-bd.com")
 
@@ -186,6 +191,11 @@ EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+# Without this, Django's smtplib call has no socket timeout at all — a slow
+# or unresponsive SMTP handshake blocks forever. New-bid emails send
+# synchronously and immediately from inside the sync loop (§16), so an
+# unresponsive Gmail connection during a large sync would hang the whole run.
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=10)
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Spectrum Bid Tracker <noreply@spectrum-bd.com>")
 # No App Password configured yet → print to the console instead of trying (and
 # failing) real SMTP. Once EMAIL_HOST_USER/PASSWORD are filled in, this

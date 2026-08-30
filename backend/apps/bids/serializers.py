@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 from rest_framework import serializers
@@ -297,3 +298,28 @@ class BidWriteSerializer(serializers.ModelSerializer):
         if not value or not value.strip():
             raise serializers.ValidationError("This field is required.")
         return value.strip()
+
+    def _normalize_enum(self, value):
+        """Uppercase + trim, matching apps.sync.normalizers.norm_enum exactly
+        (§8) — without this, a value typed free-text here (e.g. "Not
+        Submitted") would sit alongside a sheet-synced "NOT SUBMITTED" as a
+        second, distinct value in every filter dropdown and choice list."""
+        return re.sub(r"\s+", " ", value.strip()).upper() if value else value
+
+    def validate_stage(self, value):
+        return self._normalize_enum(value)
+
+    def validate_initiation_mode(self, value):
+        return self._normalize_enum(value)
+
+    def validate_procurement_type(self, value):
+        return self._normalize_enum(value)
+
+    def validate_security_mode(self, value):
+        return self._normalize_enum(value)
+
+    def validate_submission_status(self, value):
+        return self._normalize_enum(value)
+
+    def validate_result(self, value):
+        return self._normalize_enum(value)

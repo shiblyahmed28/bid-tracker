@@ -201,7 +201,9 @@ export function BidForm({ initial, onSubmit, onCancel, submitLabel }: BidFormPro
     <form onSubmit={handleSubmit}>
       {!initial && (
         <div className="banner b-info">
-          App-created bids are never written back to the sheet — they're managed here going forward.
+          App-created bids are managed here going forward. They're only appended to the sheet if an
+          admin has turned that on in Master Settings — either way, edits made here afterward are
+          never synced back.
         </div>
       )}
 
