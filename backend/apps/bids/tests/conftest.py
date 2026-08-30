@@ -1,7 +1,7 @@
 import pytest
 
 from apps.accounts.models import User
-from apps.bids.models import Client, Team
+from apps.bids.models import Client, Person, Team
 
 
 @pytest.fixture
@@ -19,6 +19,11 @@ def client_obj(db):
 @pytest.fixture
 def team(db):
     return Team.objects.get(name="Government")
+
+
+@pytest.fixture
+def person(db):
+    return Person.objects.create(canonical_name="Farhana Islam")
 
 
 @pytest.fixture

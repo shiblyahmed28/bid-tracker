@@ -1,8 +1,10 @@
 import uuid
+from decimal import Decimal
 
 from django.conf import settings
 from django.db import connection, models
-from django.db.models import Count, OuterRef, Subquery
+from django.db.models import Count, F, OuterRef, Q, Subquery, Sum, Window
+from django.db.models.functions import RowNumber
 from django.utils import timezone
 
 
@@ -27,10 +29,39 @@ class Team(models.Model):
 
 class Person(models.Model):
     """Sheet columns cam / sales-resource / bid-manager collapse into this
-    table. Match case-insensitively on the whitespace-stripped name (§8)."""
+    table. Match case-insensitively on the whitespace-stripped name (§8).
+
+    email/person_type/organization/phone/is_active/user/welcome_email_sent_at
+    are app-native (§Phase 19 item 4) — sync never sets or reads them, it only
+    ever touches canonical_name/aliases via resolve_person (§8)."""
+
+    class PersonType(models.TextChoices):
+        INTERNAL = "internal", "Internal"
+        EXTERNAL = "external", "External"
 
     canonical_name = models.CharField(max_length=200, unique=True)
     aliases = models.JSONField(default=list, blank=True)
+
+    # null=True (not just blank) so multiple people can go without an email —
+    # Postgres treats every NULL as distinct, so "unique when set" falls out
+    # of null=True + unique=True with no extra constraint needed. A future
+    # write path must normalize "" to None, or a second blank submission
+    # would collide on the unique index.
+    email = models.EmailField(null=True, blank=True, unique=True)
+    person_type = models.CharField(max_length=10, choices=PersonType.choices, default=PersonType.INTERNAL)
+    organization = models.CharField(max_length=255, blank=True)
+    phone = models.CharField(max_length=32, blank=True)
+    is_active = models.BooleanField(default=True)
+    # Links this Person to a login account (Phase 20's "linked user account").
+    # One person per account, hence OneToOne rather than a bare FK.
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="person_profile"
+    )
+    # Phase 19 lists this as a Person-level field; Phase 20's welcome-email
+    # feature describes "never sends twice for the same bid" (per bid+person,
+    # not per person) — whoever builds that should re-check whether this
+    # needs to move onto BidEngagement instead of staying here.
+    welcome_email_sent_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["canonical_name"]
@@ -111,7 +142,12 @@ class Bid(models.Model):
 
     # New fields (§7) — app-native, never touched by sync.
     team = models.ForeignKey(Team, null=True, blank=True, on_delete=models.PROTECT, related_name="bids")
-    engaged_resources = models.ManyToManyField(Person, blank=True, related_name="engaged_bids")
+    # Through BidEngagement (§Phase 19 item 1) — same list-of-people relation
+    # as before (still read/written as a plain Person list everywhere), now
+    # carrying per-person dates/days/convenience_bill/note on each row.
+    engaged_resources = models.ManyToManyField(
+        Person, through="BidEngagement", blank=True, related_name="engaged_bids"
+    )
     engagement_from = models.DateField(null=True, blank=True)
     engagement_to = models.DateField(null=True, blank=True)
 
@@ -192,6 +228,41 @@ class Bid(models.Model):
             return (self.engagement_to - self.engagement_from).days
         return None
 
+    # §Phase 19 item 3 — all computed, none stored. Each aggregates in the
+    # database (never a Python loop over the related rows).
+
+    @property
+    def total_engagement_days(self):
+        """Sum of BidEngagement.days — actual worked days, independent of
+        the (engaged_from, engaged_to) date span on each row."""
+        return self.engagements.aggregate(total=Sum("days"))["total"] or 0
+
+    @property
+    def total_convenience_bill(self):
+        """Always BDT — BidEngagement.convenience_bill carries no currency
+        of its own (§Phase 19 item 1)."""
+        return self.engagements.aggregate(total=Sum("convenience_bill"))["total"] or Decimal("0")
+
+    @property
+    def total_cost_lines(self):
+        """BidCostLine.amount summed per currency — never combined into one
+        figure across BDT and USD (§8, §20)."""
+        totals = self.cost_lines.aggregate(
+            bdt=Sum("amount", filter=Q(currency=self.Currency.BDT)),
+            usd=Sum("amount", filter=Q(currency=self.Currency.USD)),
+        )
+        return {"BDT": totals["bdt"] or Decimal("0"), "USD": totals["usd"] or Decimal("0")}
+
+    @property
+    def management_cost(self):
+        """total_cost_lines + total_convenience_bill, per currency. Only the
+        BDT side gets convenience_bill added, since that field is always BDT."""
+        cost_lines = self.total_cost_lines
+        return {
+            "BDT": cost_lines["BDT"] + self.total_convenience_bill,
+            "USD": cost_lines["USD"],
+        }
+
     def apply_change(self, field, value, actor):
         """The only path for manual edits. Tracks the override so the next
         sync raises a SyncConflict instead of silently clobbering it (§9),
@@ -251,3 +322,79 @@ class BidNote(models.Model):
 
     def __str__(self):
         return f"Note on {self.bid.reference} by {self.author or 'unknown'}"
+
+
+class BidEngagement(models.Model):
+    """Through-model for Bid.engaged_resources (§Phase 19 item 1), replacing
+    a plain M2M so each (bid, person) pair carries its own worked days and
+    convenience bill — app-native, never touched by sync (§9 step 4d)."""
+
+    bid = models.ForeignKey(Bid, on_delete=models.CASCADE, related_name="engagements")
+    person = models.ForeignKey(Person, on_delete=models.PROTECT, related_name="engagements")
+    engaged_from = models.DateField(null=True, blank=True)
+    engaged_to = models.DateField(null=True, blank=True)
+    # Actual worked days inside (engaged_from, engaged_to) — entered directly,
+    # never derived from the date span (someone engaged 1-15 Aug may have
+    # worked 7 days). Defaults to 0 so .set()/.add() on engaged_resources
+    # keep working without having to specify it up front.
+    days = models.PositiveIntegerField(default=0)
+    convenience_bill = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    note = models.TextField(blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["bid", "person"], name="unique_bid_engagement_person")]
+        ordering = ["person__canonical_name"]
+
+    def __str__(self):
+        return f"{self.person} on {self.bid.reference}"
+
+
+class BidCostLineQuerySet(models.QuerySet):
+    def with_line_number(self):
+        """Display position within its own bid — computed, never stored
+        (§Phase 19 item 2). A Window() partitioned by bid is safe here (unlike
+        Bid.serial, see with_serial() above): cost lines are only ever listed
+        scoped to one bid, so there's no risk of an outer filter narrowing
+        the partition to less than "this bid's own lines"."""
+        return self.annotate(
+            line_number=Window(
+                expression=RowNumber(),
+                partition_by=[F("bid")],
+                order_by=[F("date").asc(nulls_last=True), F("created_at").asc()],
+            )
+        )
+
+
+class BidCostLineManager(models.Manager):
+    def get_queryset(self):
+        return BidCostLineQuerySet(self.model, using=self._db)
+
+    def with_line_number(self):
+        return self.get_queryset().with_line_number()
+
+
+class BidCostLine(models.Model):
+    """Bid preparation costs (§Phase 19 item 2) — app-native, never touched
+    by sync. `category`'s allowed values are admin-managed via the Master
+    Settings choice-list system (settings_admin), same pattern as stage/
+    security_mode/etc.: a plain CharField here, not an FK."""
+
+    bid = models.ForeignKey(Bid, on_delete=models.CASCADE, related_name="cost_lines")
+    description = models.CharField(max_length=255)
+    date = models.DateField(null=True, blank=True)
+    reference = models.CharField(max_length=100, blank=True)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, choices=Bid.Currency.choices, default=Bid.Currency.BDT)
+    category = models.CharField(max_length=100, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = BidCostLineManager()
+
+    class Meta:
+        ordering = ["date", "created_at"]
+
+    def __str__(self):
+        return f"{self.description} ({self.amount} {self.currency})"

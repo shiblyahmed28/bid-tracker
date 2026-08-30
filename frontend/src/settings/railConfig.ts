@@ -15,6 +15,9 @@ const CHOICE_LIST_ORDER = [
   "result",
   "submission_status",
   "delivery_type",
+  // §Phase 19 item 2 — BidCostLine.category, admin-managed like every other
+  // list here, though the cost-line management UI itself isn't built yet.
+  "cost_category",
 ];
 
 export function buildRail(choiceLists: ChoiceListItem[]): RailItem[] {

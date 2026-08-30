@@ -216,14 +216,45 @@ synced, and never overwritten by a sheet fetch.
 | Field | Type | Notes |
 |---|---|---|
 | `team` | FK to `Team` | Which Spectrum team owns the bid. Seed: Government, Banking & Fintech, Education & Research, Telecom, Enterprise. Admin-editable list. |
-| `engaged_resources` | M2M to `Person` | **A list, not a count.** Everyone who worked the bid, not just the three named roles. The count is derived — never store it. |
-| `engagement_from` / `engagement_to` | date | The period those people were engaged. `engagement_days` is a computed property, not a column. |
+| `engaged_resources` | M2M to `Person`, through `BidEngagement` | **A list, not a count.** Everyone who worked the bid, not just the three named roles. The count is derived — never store it. Still read/written as a plain `Person` list everywhere (`.set()`, `.all()`); only the underlying table gained extra per-row columns (below). |
+| `engagement_from` / `engagement_to` | date | The bid-level period those people were engaged. `engagement_days` is a computed property, not a column. Distinct from `BidEngagement`'s own per-person dates below. |
 
 Editable in the create and edit forms as a multi-select and a date pair. Both are filterable and
 selectable columns on the register, and `team` is a dashboard breakdown.
 
 When back-filling existing rows, leave them null rather than guessing. The prototype seeds
 plausible values for demo purposes only — **do not port that seeding logic into the app.**
+
+### Engagement and cost tracking (Phase 19)
+
+Two more app-native models, never touched by sync (§9 step 4d):
+
+**`BidEngagement`** — the through-model for `engaged_resources` above. One row per (bid, person),
+unique together:
+
+| Field | Type | Notes |
+|---|---|---|
+| `engaged_from` / `engaged_to` | date, optional | This person's own engagement window — separate from the bid-level `engagement_from`/`engagement_to`. |
+| `days` | int, required, default 0 | **Actual worked days, entered directly — never derived from the date span.** Someone engaged 1–15 Aug may have worked 7 days. |
+| `convenience_bill` | Decimal, default 0 | Always BDT — no currency field of its own. |
+| `note` | text, optional | |
+
+**`BidCostLine`** — bid preparation costs: `bid` FK, `description`, `date`, `reference`,
+`amount` (Decimal), `currency` (default BDT), `category` (optional — admin-managed choice list,
+same pattern as `stage`/`security_mode`: a plain string, not an FK), `created_by`, `created_at`.
+Its display position (`line_number`) is computed per bid, never stored — see §10.
+
+**Computed on `Bid`, none stored:**
+
+| Property | Computes |
+|---|---|
+| `total_engagement_days` | `Sum(BidEngagement.days)` |
+| `total_convenience_bill` | `Sum(BidEngagement.convenience_bill)` — always BDT |
+| `total_cost_lines` | `Sum(BidCostLine.amount)`, **BDT and USD reported separately** |
+| `management_cost` | `total_cost_lines + total_convenience_bill`, per currency — only the BDT side gets `total_convenience_bill` added, since that figure is always BDT |
+
+All four aggregate in the database (`.aggregate()`), never by looping over the related rows in
+Python. Never sum BDT and USD into one figure (§8, §20).
 
 ---
 
@@ -282,7 +313,9 @@ Every 8 hours (00:00, 08:00, 16:00 Asia/Dhaka) via Celery Beat, and on demand vi
             · unchanged → skip
             · changed, not locally overridden → apply, emit "updated" with old/new
             · changed AND locally overridden → do NOT apply, create SyncConflict, notify
-     d  NEVER touch team, engaged_resources, engagement dates — app-native (§7).
+     d  NEVER touch team, engaged_resources, engagement dates, BidEngagement, BidCostLine, or the
+        new Person fields (email, person_type, organization, phone, is_active, user,
+        welcome_email_sent_at) — all app-native (§7).
 5  source='sheet' bids whose uid vanished → missing_from_sheet=True. NEVER auto-delete.
 6  Close SyncRun with counts: read, created, updated, conflicted, quarantined, duration.
 7  Queue notification digests.
@@ -322,6 +355,10 @@ UserSession
 
 Team              name, is_active
 Person            canonical_name, aliases[]
+                  email unique-when-set null · person_type: internal|external, default internal
+                  organization · phone · is_active bool          # NEW, app-native (Phase 19)
+                  user FK to User null (OneToOne)                # NEW, app-native (Phase 19)
+                  welcome_email_sent_at datetime null            # NEW, app-native (Phase 19)
 Client            name, canonical_name
 
 Bid
@@ -330,12 +367,12 @@ Bid
   client FK · description
   cam FK · sales_resource FK · bid_manager FK
   team FK null                          # NEW, app-native
-  engaged_resources M2M Person          # NEW, app-native, a list
+  engaged_resources M2M Person through BidEngagement   # NEW, app-native, a list
   engagement_from, engagement_to date   # NEW, app-native
   stage · initiation_mode · procurement_type
   is_goods, is_works, is_service bool
   tender_id                             # informational only, NOT a key
-  published_date, prebid_date, submission_date
+  initiation_date, published_date, prebid_date, submission_date
   submission_status · result
   security_mode
   security_amount_raw, security_amount, security_currency
@@ -346,6 +383,17 @@ Bid
   created_by, updated_by FK · created_at, updated_at
 
   @property engagement_days = (engagement_to - engagement_from).days   # computed, never stored
+  @property total_engagement_days, total_convenience_bill,             # computed, never stored
+            total_cost_lines, management_cost                          # (§7 Phase 19, per-currency)
+
+BidEngagement     bid FK · person FK · unique(bid, person)             # NEW, app-native (Phase 19)
+                  engaged_from, engaged_to date null · days int default 0
+                  convenience_bill Decimal default 0 (BDT) · note
+
+BidCostLine       bid FK · description · date · reference              # NEW, app-native (Phase 19)
+                  amount Decimal · currency default BDT · category (choice-list value)
+                  created_by FK · created_at
+                  # line_number is a computed display position, never stored
 
 BidNote · SyncRun · QuarantineRow · SyncConflict
 AuditEntry        actor FK null, actor_label, action, bid FK null, field,
