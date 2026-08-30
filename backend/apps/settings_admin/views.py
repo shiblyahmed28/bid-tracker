@@ -1,13 +1,23 @@
+from decimal import Decimal
+
+from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.audit.models import AuditEntry
-from apps.bids.models import Client, Person, Team
+from apps.bids.models import BidEngagement, Client, Person, Team
 
 from .capabilities import SettingsPermission
-from .models import ChoiceList, ChoiceValue, DeadlineReminderRule, NotificationPolicy, UserCapability
+from .models import (
+    ChoiceList,
+    ChoiceValue,
+    DeadlineReminderRule,
+    NotificationPolicy,
+    UserCapability,
+    WelcomeEmailSettings,
+)
 from .serializers import (
     CapabilityReferenceSerializer,
     ChoiceListSerializer,
@@ -16,13 +26,27 @@ from .serializers import (
     ChoiceValueSerializer,
     DeadlineReminderRuleSerializer,
     NotificationPolicySerializer,
+    PersonEngagementSerializer,
+    PersonMergeSerializer,
     SettingsClientSerializer,
     SettingsPersonSerializer,
     SettingsTeamSerializer,
     UserCapabilityGrantSerializer,
     UserCapabilityOverrideSerializer,
+    WelcomeEmailSettingsSerializer,
 )
-from .services import SelfLockoutError, clear_capability_override, grant_capability, rename_value
+from .services import (
+    NoEmailError,
+    SamePersonError,
+    SelfLockoutError,
+    WelcomeEmailsDisabledError,
+    clear_capability_override,
+    find_duplicate_person_groups,
+    grant_capability,
+    merge_persons,
+    rename_value,
+    send_welcome_email,
+)
 
 
 def _audit(request, action, **kwargs):
@@ -271,10 +295,135 @@ class SettingsClientViewSet(AuditedModelViewSet):
 
 
 class SettingsPersonViewSet(AuditedModelViewSet):
+    """The "Engaged Resources" management screen (§Phase 20 item 2, label
+    change only — the model stays Person). ?person_type=&is_active= filter
+    the list; every field but the read-only ones is inline-editable."""
+
     queryset = Person.objects.all()
     serializer_class = SettingsPersonSerializer
     permission_classes = [SettingsPermission("manage_choice_lists")]
-    audit_tracked_fields = ["canonical_name"]
+    audit_tracked_fields = [
+        "canonical_name", "email", "person_type", "organization", "phone", "is_active", "user"
+    ]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        person_type = self.request.query_params.get("person_type")
+        if person_type:
+            qs = qs.filter(person_type=person_type)
+        is_active = self.request.query_params.get("is_active")
+        if is_active is not None:
+            qs = qs.filter(is_active=is_active.lower() in ("1", "true", "yes"))
+        return qs
+
+
+class PersonDuplicatesView(APIView):
+    """GET /settings/people/duplicates/ (§Phase 20 item 3) — likely-duplicate
+    groups by normalized name, for the merge tool. The phase spec's own
+    guidance: run this before turning on welcome emails."""
+
+    permission_classes = [SettingsPermission("manage_choice_lists")]
+
+    def get(self, request):
+        groups = find_duplicate_person_groups()
+        return Response([{"people": SettingsPersonSerializer(people, many=True).data} for people in groups])
+
+
+class PersonMergeView(APIView):
+    """POST /settings/people/{id}/merge/ — {"duplicate_id": N}. `id` in the
+    URL is the surviving record; duplicate_id is absorbed into it and
+    deactivated, never hard-deleted (§Phase 20 item 3)."""
+
+    permission_classes = [SettingsPermission("manage_choice_lists")]
+
+    def post(self, request, pk):
+        survivor = get_object_or_404(Person, pk=pk)
+        serializer = PersonMergeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        duplicate = get_object_or_404(Person, pk=serializer.validated_data["duplicate_id"])
+
+        try:
+            result = merge_persons(survivor, duplicate, request.user)
+        except SamePersonError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        return Response({"survivor": SettingsPersonSerializer(survivor).data, **result})
+
+
+class PersonEngagementsView(APIView):
+    """GET /settings/people/{id}/engagements/ (§Phase 20 item 4) — every bid
+    this person was engaged on, with days/dates/convenience_bill and totals."""
+
+    permission_classes = [SettingsPermission("manage_choice_lists")]
+
+    def get(self, request, pk):
+        person = get_object_or_404(Person, pk=pk)
+        engagements = (
+            BidEngagement.objects.filter(person=person)
+            .select_related("bid", "bid__client")
+            .order_by("-bid__submission_date")
+        )
+        totals = engagements.aggregate(days=Sum("days"), convenience_bill=Sum("convenience_bill"))
+        return Response(
+            {
+                "person": SettingsPersonSerializer(person).data,
+                "engagements": PersonEngagementSerializer(engagements, many=True).data,
+                "totals": {
+                    "days": totals["days"] or 0,
+                    "convenience_bill": totals["convenience_bill"] or Decimal("0"),
+                },
+            }
+        )
+
+
+class WelcomeEmailSettingsView(APIView):
+    """GET/PATCH /settings/welcome-email/ — the global switch (§Phase 20
+    item 5), default OFF. Gated by manage_welcome_emails — a distinct,
+    narrower capability than manage_choice_lists, since flipping this on
+    starts sending real email to external people."""
+
+    permission_classes = [SettingsPermission("manage_welcome_emails")]
+
+    def get(self, request):
+        return Response(WelcomeEmailSettingsSerializer(WelcomeEmailSettings.load()).data)
+
+    def patch(self, request):
+        obj = WelcomeEmailSettings.load()
+        was_enabled = obj.enabled
+        serializer = WelcomeEmailSettingsSerializer(obj, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        obj = serializer.save(updated_by=request.user)
+
+        if obj.enabled != was_enabled:
+            _audit(
+                request,
+                AuditEntry.Action.WELCOME_EMAIL_SETTINGS,
+                field="enabled",
+                old_value=str(was_enabled),
+                new_value=str(obj.enabled),
+            )
+        return Response(WelcomeEmailSettingsSerializer(obj).data)
+
+
+class SendWelcomeEmailView(APIView):
+    """POST /settings/engagements/{id}/welcome-email/ — always admin-
+    triggered (§Phase 20 item 5), never called automatically from the bid
+    create/edit flow. Works for both the first send and a deliberate
+    resend; the frontend only changes the button's label based on whether
+    welcome_email_sent_at is already set."""
+
+    permission_classes = [SettingsPermission("manage_welcome_emails")]
+
+    def post(self, request, pk):
+        engagement = get_object_or_404(
+            BidEngagement.objects.select_related("bid", "bid__client", "person"), pk=pk
+        )
+        try:
+            send_welcome_email(engagement, request.user)
+        except (WelcomeEmailsDisabledError, NoEmailError) as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        return Response(PersonEngagementSerializer(engagement).data)
 
 
 class SettingsTeamViewSet(AuditedModelViewSet):

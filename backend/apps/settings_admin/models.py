@@ -116,6 +116,30 @@ class DeadlineReminderRule(models.Model):
         return f"{self.days_before}-day reminder"
 
 
+class WelcomeEmailSettings(models.Model):
+    """Global on/off switch for the Phase 20 welcome-email feature — a
+    single-row singleton, default OFF. Nothing sends until an admin turns
+    this on, regardless of who clicks "Send" (§Phase 20 item 5)."""
+
+    enabled = models.BooleanField(default=False)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return f"Welcome emails: {'on' if self.enabled else 'off'}"
+
+
 class DeadlineReminderSent(models.Model):
     """Per-bid-per-rule dedup (§16's old single `deadline_alert_sent_at`
     couldn't represent "already sent the 7-day one but not the 14-day one")."""

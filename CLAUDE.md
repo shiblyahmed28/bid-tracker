@@ -256,6 +256,37 @@ Its display position (`line_number`) is computed per bid, never stored — see �
 All four aggregate in the database (`.aggregate()`), never by looping over the related rows in
 Python. Never sum BDT and USD into one figure (§8, §20).
 
+### Engaged Resources (Phase 20)
+
+The Master Settings screen for `Person` is labelled **"Engaged Resources"** in the UI — a label
+change only, the model stays `Person` and every API path stays `/settings/people/`.
+
+- **Management screen**: name, email, internal/external, organization, phone, active, linked user
+  account, and a usage count (bids as CAM/sales resource/bid manager/engaged resource). Filter by
+  type and by active. Inline create/edit/deactivate.
+- **Duplicate detection and merge**: groups `Person` rows by whitespace-collapsed, case-folded
+  `canonical_name` — `canonical_name` is unique at the DB level but only case-sensitively, so
+  historical rows can still collide this way. Merging one person into another reassigns every
+  `BidEngagement` (skipping — not overwriting — any bid the survivor is already engaged on) plus
+  every `cam`/`sales_resource`/`bid_manager` reference on `Bid`. The absorbed record is
+  **deactivated, never hard-deleted** (avoids a `PROTECT` failure and keeps its audit history
+  intact). **Run this before turning on welcome emails**, so a duplicate doesn't miss its email.
+- **Engagement history**: selecting a resource lists every bid they were engaged on — days, dates,
+  convenience bill — plus totals.
+- **Welcome email**, admin-triggered only, never automatic:
+  - Global switch (`WelcomeEmailSettings`, above), **default off** — checked inside the send
+    service itself, not just hidden in the UI, so the gate holds regardless of who calls it.
+  - One send per (bid, person) — `welcome_email_sent_at` lives on `BidEngagement`, not `Person`,
+    precisely so this is per-bid. A "Resend" button deliberately bypasses the one-send guard;
+    there's no hard limit at the API level, only the button's label distinguishes first send from
+    resend.
+  - Blocked with no email on file for that person.
+  - **External recipients get a reduced version** — no security amounts, no credit facility, no BG
+    details. Enforced by leaving those keys out of the template context entirely for external
+    people, not by a template conditional alone, so a template bug can't leak them.
+  - Every send is audited (recipient, bid, triggering admin), and so is every toggle of the global
+    switch.
+
 ---
 
 ## 8. Normalization rules
@@ -313,9 +344,9 @@ Every 8 hours (00:00, 08:00, 16:00 Asia/Dhaka) via Celery Beat, and on demand vi
             · unchanged → skip
             · changed, not locally overridden → apply, emit "updated" with old/new
             · changed AND locally overridden → do NOT apply, create SyncConflict, notify
-     d  NEVER touch team, engaged_resources, engagement dates, BidEngagement, BidCostLine, or the
-        new Person fields (email, person_type, organization, phone, is_active, user,
-        welcome_email_sent_at) — all app-native (§7).
+     d  NEVER touch team, engaged_resources, engagement dates, BidEngagement (including its
+        welcome_email_sent_at), BidCostLine, or the new Person fields (email, person_type,
+        organization, phone, is_active, user) — all app-native (§7).
 5  source='sheet' bids whose uid vanished → missing_from_sheet=True. NEVER auto-delete.
 6  Close SyncRun with counts: read, created, updated, conflicted, quarantined, duration.
 7  Queue notification digests.
@@ -358,7 +389,6 @@ Person            canonical_name, aliases[]
                   email unique-when-set null · person_type: internal|external, default internal
                   organization · phone · is_active bool          # NEW, app-native (Phase 19)
                   user FK to User null (OneToOne)                # NEW, app-native (Phase 19)
-                  welcome_email_sent_at datetime null            # NEW, app-native (Phase 19)
 Client            name, canonical_name
 
 Bid
@@ -389,6 +419,11 @@ Bid
 BidEngagement     bid FK · person FK · unique(bid, person)             # NEW, app-native (Phase 19)
                   engaged_from, engaged_to date null · days int default 0
                   convenience_bill Decimal default 0 (BDT) · note
+                  welcome_email_sent_at datetime null                  # NEW, app-native (Phase 20) —
+                  # per (bid, person), not per Person: "never sends twice for the same bid"
+
+WelcomeEmailSettings   singleton (pk=1) · enabled bool default False   # NEW (Phase 20 item 5)
+                       updated_by FK · updated_at
 
 BidCostLine       bid FK · description · date · reference              # NEW, app-native (Phase 19)
                   amount Decimal · currency default BDT · category (choice-list value)
@@ -418,6 +453,8 @@ Notification      user FK, kind, title, body, bid FK, read, created_at
 | **Audit log** | ❌ | ❌ | ✅ |
 | All users' sign-in history · revoke others' sessions | ❌ | ❌ | ✅ |
 | User management · reset any password | ❌ | ❌ | ✅ |
+| Merge engaged resources · view engagement history | ❌ | ❌ | ✅ |
+| Toggle and send welcome emails (`manage_welcome_emails`) | ❌ | ❌ | ✅ |
 
 Enforce with DRF permission classes on **every** viewset. Never rely on a hidden frontend button.
 Sync history and the audit log are admin-only. This is explicit and not negotiable.
@@ -602,6 +639,13 @@ GET    /audit/ · GET /audit/export/          admin
 GET/POST/PATCH /users/                       admin
 GET    /users/{id}/sessions/                 admin
 POST   /users/{id}/reset-password/           admin
+
+GET/POST/PATCH /settings/people/     ?person_type=&is_active=     manage_choice_lists (§Phase 20)
+GET    /settings/people/duplicates/                               manage_choice_lists
+POST   /settings/people/{id}/merge/  {"duplicate_id": id}         manage_choice_lists
+GET    /settings/people/{id}/engagements/                         manage_choice_lists
+GET/PATCH /settings/welcome-email/   {"enabled": bool}            manage_welcome_emails
+POST   /settings/engagements/{id}/welcome-email/                  manage_welcome_emails
 ```
 
 **Default when no dates given: submission date from today−7 to today+7.**

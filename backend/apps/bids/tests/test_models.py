@@ -214,7 +214,6 @@ class TestPersonNewFields:
         assert person.person_type == Person.PersonType.INTERNAL
         assert person.is_active is True
         assert person.email is None
-        assert person.welcome_email_sent_at is None
 
     def test_email_is_optional_multiple_people_may_have_none(self):
         Person.objects.create(canonical_name="No Email One")

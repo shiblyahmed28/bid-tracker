@@ -30,7 +30,8 @@ export function buildRail(choiceLists: ChoiceListItem[]): RailItem[] {
   return [
     ...choiceItems,
     { kind: "reference", key: "clients", label: "Clients" },
-    { kind: "reference", key: "people", label: "People" },
+    // Label change only (§Phase 20 item 1) — model name and `key` stay Person/"people".
+    { kind: "reference", key: "people", label: "Engaged Resources" },
     { kind: "reference", key: "teams", label: "Teams" },
   ];
 }

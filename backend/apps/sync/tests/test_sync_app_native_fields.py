@@ -1,9 +1,9 @@
-"""§Phase 19 item 6: sync must never touch BidEngagement, BidCostLine, or the
-new Person fields — they're app-native, same as team/engaged_resources/
-engagement dates were already (§9 step 4d). run_sync() is exercised for real
-here (sheet I/O mocked), against an existing bid that already carries all of
-these, to prove the sync leaves them alone while still updating a genuine
-sheet-owned field.
+"""§Phase 19 item 6: sync must never touch BidEngagement (including its
+Phase 20 welcome_email_sent_at), BidCostLine, or the new Person fields —
+they're app-native, same as team/engaged_resources/engagement dates were
+already (§9 step 4d). run_sync() is exercised for real here (sheet I/O
+mocked), against an existing bid that already carries all of these, to prove
+the sync leaves them alone while still updating a genuine sheet-owned field.
 """
 
 import datetime
@@ -66,10 +66,14 @@ def test_sync_leaves_engagement_cost_and_person_fields_untouched(fake_sheet_io, 
         email="farhana@example.com",
         person_type=Person.PersonType.EXTERNAL,
         organization="Partner Co",
-        welcome_email_sent_at=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
     )
     engagement = BidEngagement.objects.create(
-        bid=bid, person=person, days=9, convenience_bill=Decimal("4500"), note="handled procurement"
+        bid=bid,
+        person=person,
+        days=9,
+        convenience_bill=Decimal("4500"),
+        note="handled procurement",
+        welcome_email_sent_at=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
     )
     cost_line = BidCostLine.objects.create(
         bid=bid, description="Printing", amount=Decimal("300"), currency="BDT", category="Printing"
@@ -92,6 +96,7 @@ def test_sync_leaves_engagement_cost_and_person_fields_untouched(fake_sheet_io, 
     assert engagement.days == 9
     assert engagement.convenience_bill == Decimal("4500")
     assert engagement.note == "handled procurement"
+    assert engagement.welcome_email_sent_at is not None
 
     assert BidCostLine.objects.filter(pk=cost_line.pk).exists()
     assert cost_line.amount == Decimal("300")
@@ -100,4 +105,3 @@ def test_sync_leaves_engagement_cost_and_person_fields_untouched(fake_sheet_io, 
     assert person.email == "farhana@example.com"
     assert person.person_type == Person.PersonType.EXTERNAL
     assert person.organization == "Partner Co"
-    assert person.welcome_email_sent_at is not None

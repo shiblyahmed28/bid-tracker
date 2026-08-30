@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.bids.models import Client, Person, Team
+from apps.bids.models import Bid, BidEngagement, Client, Person, Team
 from apps.sync.normalizers import norm_text
 
 from .capabilities import CAPABILITIES, ROLE_DEFAULT_CAPABILITIES
@@ -10,6 +10,7 @@ from .models import (
     DeadlineReminderRule,
     NotificationPolicy,
     UserCapability,
+    WelcomeEmailSettings,
 )
 
 
@@ -49,12 +50,32 @@ class SettingsClientSerializer(serializers.ModelSerializer):
 
 
 class SettingsPersonSerializer(serializers.ModelSerializer):
+    """§Phase 20 item 2's enhanced management screen — name, email,
+    internal/external, organization, phone, active, linked user account and
+    usage_count, with inline create/edit in mind (no separate write serializer;
+    every field but the read-only ones is editable via PATCH)."""
+
     usage_count = serializers.SerializerMethodField()
+    user_email = serializers.EmailField(source="user.email", read_only=True, default=None)
+    user_full_name = serializers.CharField(source="user.full_name", read_only=True, default=None)
 
     class Meta:
         model = Person
-        fields = ["id", "canonical_name", "aliases", "usage_count"]
-        read_only_fields = ["id", "usage_count"]
+        fields = [
+            "id",
+            "canonical_name",
+            "aliases",
+            "email",
+            "person_type",
+            "organization",
+            "phone",
+            "is_active",
+            "user",
+            "user_email",
+            "user_full_name",
+            "usage_count",
+        ]
+        read_only_fields = ["id", "aliases", "user_email", "user_full_name", "usage_count"]
 
     def get_usage_count(self, obj):
         return (
@@ -75,6 +96,63 @@ class SettingsPersonSerializer(serializers.ModelSerializer):
         if existing.exists():
             raise serializers.ValidationError("A person with this name already exists.")
         return normalized
+
+    def validate_email(self, value):
+        if not value:
+            return value
+        existing = Person.objects.filter(email__iexact=value)
+        if self.instance:
+            existing = existing.exclude(pk=self.instance.pk)
+        if existing.exists():
+            raise serializers.ValidationError("A person with this email already exists.")
+        return value
+
+
+class EngagementBidSummarySerializer(serializers.ModelSerializer):
+    client_name = serializers.CharField(source="client.name", read_only=True)
+
+    class Meta:
+        model = Bid
+        fields = ["id", "reference", "client_name", "submission_date", "stage", "result"]
+
+
+class PersonEngagementSerializer(serializers.ModelSerializer):
+    """One row of a person's engagement history (§Phase 20 item 4) — the
+    bid it's on, days/dates/convenience_bill, and welcome-email status so the
+    same view can drive the send/resend button (§Phase 20 item 5)."""
+
+    bid = EngagementBidSummarySerializer(read_only=True)
+
+    class Meta:
+        model = BidEngagement
+        fields = [
+            "id",
+            "bid",
+            "engaged_from",
+            "engaged_to",
+            "days",
+            "convenience_bill",
+            "note",
+            "welcome_email_sent_at",
+        ]
+
+
+class PersonMergeSerializer(serializers.Serializer):
+    duplicate_id = serializers.IntegerField()
+
+    def validate_duplicate_id(self, value):
+        if not Person.objects.filter(pk=value).exists():
+            raise serializers.ValidationError("No such person.")
+        return value
+
+
+class WelcomeEmailSettingsSerializer(serializers.ModelSerializer):
+    updated_by_email = serializers.EmailField(source="updated_by.email", read_only=True, default=None)
+
+    class Meta:
+        model = WelcomeEmailSettings
+        fields = ["enabled", "updated_by_email", "updated_at"]
+        read_only_fields = ["updated_by_email", "updated_at"]
 
 
 class SettingsTeamSerializer(serializers.ModelSerializer):

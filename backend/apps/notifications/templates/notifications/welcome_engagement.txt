@@ -1,0 +1,13 @@
+Welcome, {{ person.canonical_name }}
+
+You've been added to the team for {{ bid.client.name }}{% if bid.description %} — {{ bid.description }}{% endif %}.
+
+Reference: {{ bid.reference }}
+Submission date: {{ bid.submission_date|default:"—" }}
+Your engagement: {% if engagement.engaged_from %}{{ engagement.engaged_from }} to {{ engagement.engaged_to|default:"—" }}{% else %}dates not yet set{% endif %} ({{ engagement.days }} day{{ engagement.days|pluralize }})
+{% if not is_external %}
+Security amount: {{ security_amount_raw|default:"—" }} {{ security_currency }}
+Credit facility: {{ credit_facility_raw|default:"—" }}
+Bank guarantee: {{ bg_bank|default:"—" }}{% if bg_reference %} ({{ bg_reference }}){% endif %}{% if bg_expiry_date %}, expires {{ bg_expiry_date }}{% endif %}
+{% endif %}
+{% if contact %}Any questions — reach out to {{ contact.canonical_name }}{% if contact.email %} ({{ contact.email }}){% endif %}.{% else %}Any questions — reach out to your Spectrum contact.{% endif %}

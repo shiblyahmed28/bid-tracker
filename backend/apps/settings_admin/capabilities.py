@@ -13,6 +13,7 @@ CAPABILITIES = [
     "trigger_sync",
     "manage_choice_lists",
     "manage_notification_policy",
+    "manage_welcome_emails",
     "delete_bid",
     "export_pdf",
     "create_bid",

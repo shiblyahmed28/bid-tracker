@@ -10,10 +10,15 @@ from .views import (
     ChoiceValueReorderView,
     DeadlineReminderRuleViewSet,
     NotificationPolicyViewSet,
+    PersonDuplicatesView,
+    PersonEngagementsView,
+    PersonMergeView,
+    SendWelcomeEmailView,
     SettingsClientViewSet,
     SettingsPersonViewSet,
     SettingsTeamViewSet,
     UserCapabilitiesView,
+    WelcomeEmailSettingsView,
 )
 
 router = DefaultRouter()
@@ -50,4 +55,16 @@ urlpatterns = [
     ),
     path("settings/capabilities/", CapabilitiesReferenceView.as_view(), name="capabilities-reference"),
     path("settings/users/<int:user_id>/capabilities/", UserCapabilitiesView.as_view(), name="user-capabilities"),
+    # Must precede router.urls — "duplicates" would otherwise be swallowed by
+    # the router's settings/people/<pk>/ detail route (same lesson as
+    # bids/distinct/ vs the bids router in apps/bids/urls.py).
+    path("settings/people/duplicates/", PersonDuplicatesView.as_view(), name="person-duplicates"),
+    path("settings/people/<int:pk>/merge/", PersonMergeView.as_view(), name="person-merge"),
+    path("settings/people/<int:pk>/engagements/", PersonEngagementsView.as_view(), name="person-engagements"),
+    path("settings/welcome-email/", WelcomeEmailSettingsView.as_view(), name="welcome-email-settings"),
+    path(
+        "settings/engagements/<int:pk>/welcome-email/",
+        SendWelcomeEmailView.as_view(),
+        name="send-welcome-email",
+    ),
 ] + router.urls

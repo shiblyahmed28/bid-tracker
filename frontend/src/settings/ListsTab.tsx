@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { fetchChoiceLists } from "../api/settings";
 import { ChoiceValuesPanel } from "./ChoiceValuesPanel";
+import { EngagedResourcesPanel } from "./EngagedResourcesPanel";
 import { ListsRail } from "./ListsRail";
 import { ReferenceDataPanel } from "./ReferenceDataPanel";
 import { buildRail, type RailItem } from "./railConfig";
@@ -41,6 +42,10 @@ export function ListsTab() {
       <div className="settings-lists-panel">
         {selected.kind === "choice" ? (
           <ChoiceValuesPanel listKey={selected.key} listLabel={selected.label} onCountChange={handleCountChange} />
+        ) : selected.key === "people" ? (
+          // §Phase 20 items 1-3: a dedicated, much richer panel replaces the
+          // generic name-only ReferenceDataPanel for this one reference kind.
+          <EngagedResourcesPanel />
         ) : (
           <ReferenceDataPanel kind={selected.key} onCountChange={handleCountChange} />
         )}

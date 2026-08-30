@@ -1,0 +1,26 @@
+{% extends "notifications/_base.html" %}
+{% block content %}
+<h2 style="margin:0 0 12px;font-size:16px;">Welcome, {{ person.canonical_name }}</h2>
+<p style="margin:0 0 12px;font-size:13.5px;line-height:1.6;">
+  You've been added to the team for <b>{{ bid.client.name }}</b>{% if bid.description %} — {{ bid.description|truncatechars:200 }}{% endif %}.
+</p>
+
+<p style="margin:0 0 4px;font-size:13.5px;"><b>Reference:</b> {{ bid.reference }}</p>
+<p style="margin:0 0 4px;font-size:13.5px;"><b>Submission date:</b> {{ bid.submission_date|default:"—" }}</p>
+<p style="margin:0 0 4px;font-size:13.5px;">
+  <b>Your engagement:</b>
+  {% if engagement.engaged_from %}{{ engagement.engaged_from }} → {{ engagement.engaged_to|default:"—" }}{% else %}dates not yet set{% endif %}
+  ({{ engagement.days }} day{{ engagement.days|pluralize }})
+</p>
+
+{% if not is_external %}
+<h3 style="margin:20px 0 8px;font-size:13px;">Security and financials</h3>
+<p style="margin:0 0 4px;font-size:13.5px;"><b>Security amount:</b> {{ security_amount_raw|default:"—" }} {{ security_currency }}</p>
+<p style="margin:0 0 4px;font-size:13.5px;"><b>Credit facility:</b> {{ credit_facility_raw|default:"—" }}</p>
+<p style="margin:0 0 4px;font-size:13.5px;"><b>Bank guarantee:</b> {{ bg_bank|default:"—" }}{% if bg_reference %} ({{ bg_reference }}){% endif %}{% if bg_expiry_date %}, expires {{ bg_expiry_date }}{% endif %}</p>
+{% endif %}
+
+<p style="margin:20px 0 0;font-size:13.5px;">
+  {% if contact %}Any questions — reach out to <b>{{ contact.canonical_name }}</b>{% if contact.email %} ({{ contact.email }}){% endif %}.{% else %}Any questions — reach out to your Spectrum contact.{% endif %}
+</p>
+{% endblock %}

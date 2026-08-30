@@ -30,6 +30,9 @@ class AuditEntry(models.Model):
         NOTIFICATION_POLICY_UPDATE = "notification_policy_update", "Notification policy updated"
         DEADLINE_RULE_UPDATE = "deadline_rule_update", "Deadline reminder rule updated"
         SETTINGS_CHANGE = "settings_change", "Master setting changed"
+        PERSON_MERGE = "person_merge", "Engaged resources merged"
+        WELCOME_EMAIL_SENT = "welcome_email_sent", "Welcome email sent"
+        WELCOME_EMAIL_SETTINGS = "welcome_email_settings", "Welcome email setting changed"
 
     # actor is null with actor_label="System (sync)" for automated changes.
     actor = models.ForeignKey(

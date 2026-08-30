@@ -292,3 +292,133 @@ def notify_deadline_for_rule(bid, user, rule):
     title = f"{bid.client.name} — submission due in {rule.days_before} days ({bid.submission_date})"
     Notification.objects.create(user=user, kind=Notification.Kind.DEADLINE, title=title, bid=bid)
     send_deadline_email(user, bid, days_before=rule.days_before)
+
+
+# ---------- Engaged resources: dedup/merge, engagement history, welcome email (§Phase 20) ----------
+
+
+class NoEmailError(Exception):
+    pass
+
+
+class WelcomeEmailsDisabledError(Exception):
+    pass
+
+
+def _normalized_name_key(name):
+    import re
+
+    return re.sub(r"\s+", " ", name.strip()).casefold()
+
+
+def find_duplicate_person_groups():
+    """Groups Person rows whose canonical_name is the same once whitespace-
+    collapsed and case-folded — the "Aminul Quader Khalili " vs "Aminul
+    Quader Khalili" case (§Phase 20 item 3). canonical_name is unique at the
+    DB level but only case-sensitively, so historical rows created before
+    today's case-insensitive create/sync guards can still collide this way."""
+    from collections import defaultdict
+
+    from apps.bids.models import Person
+
+    groups = defaultdict(list)
+    for person in Person.objects.all():
+        groups[_normalized_name_key(person.canonical_name)].append(person)
+
+    return [people for people in groups.values() if len(people) > 1]
+
+
+class SamePersonError(Exception):
+    pass
+
+
+def merge_persons(survivor, duplicate, actor):
+    """Merges `duplicate` into `survivor` (§Phase 20 item 3): every
+    BidEngagement, and every cam/sales_resource/bid_manager reference,
+    moves to the survivor. A duplicate's engagement on a bid the survivor is
+    *already* engaged on can't be reassigned (unique_together) — that row is
+    dropped rather than merged, keeping the survivor's own data as canonical.
+
+    `duplicate` is never hard-deleted — it's a soft historical record now
+    (is_active=False), avoiding a PROTECT failure and keeping the audit
+    trail's actor references intact. One consolidated AuditEntry describes
+    the whole merge rather than one per reassigned bid."""
+    from django.db import transaction
+
+    from apps.bids.models import Bid, BidEngagement
+
+    if survivor.pk == duplicate.pk:
+        raise SamePersonError("Cannot merge a person into themselves.")
+
+    with transaction.atomic():
+        existing_bid_ids = set(
+            BidEngagement.objects.filter(person=survivor).values_list("bid_id", flat=True)
+        )
+        dup_engagements = BidEngagement.objects.filter(person=duplicate)
+        skipped = dup_engagements.filter(bid_id__in=existing_bid_ids).count()
+        dup_engagements.filter(bid_id__in=existing_bid_ids).delete()
+        reassigned_engagements = dup_engagements.exclude(bid_id__in=existing_bid_ids).update(person=survivor)
+
+        reassigned_cam = Bid.all_objects.filter(cam=duplicate).update(cam=survivor)
+        reassigned_sales = Bid.all_objects.filter(sales_resource=duplicate).update(sales_resource=survivor)
+        reassigned_manager = Bid.all_objects.filter(bid_manager=duplicate).update(bid_manager=survivor)
+
+        combined_aliases = list(dict.fromkeys([*survivor.aliases, *duplicate.aliases, duplicate.canonical_name]))
+        survivor.aliases = combined_aliases
+        survivor.save(update_fields=["aliases"])
+
+        duplicate.is_active = False
+        duplicate.save(update_fields=["is_active"])
+
+        summary = (
+            f"engagements: {reassigned_engagements} moved, {skipped} skipped (already on that bid); "
+            f"cam: {reassigned_cam}; sales_resource: {reassigned_sales}; bid_manager: {reassigned_manager}"
+        )
+        AuditEntry.objects.create(
+            actor=actor,
+            actor_label=actor.email,
+            action=AuditEntry.Action.PERSON_MERGE,
+            old_value=duplicate.canonical_name,
+            new_value=f"{survivor.canonical_name} ({summary})",
+        )
+
+    return {
+        "engagements_reassigned": reassigned_engagements,
+        "engagements_skipped": skipped,
+        "cam_reassigned": reassigned_cam,
+        "sales_resource_reassigned": reassigned_sales,
+        "bid_manager_reassigned": reassigned_manager,
+    }
+
+
+def send_welcome_email(engagement, actor):
+    """Admin-triggered only (§Phase 20 item 5) — never called automatically
+    from the bid create/edit flow. Blocked entirely while the global switch
+    is off, regardless of who clicks the button. A resend is just another
+    call to this same function — there's no hard one-send limit, only the
+    UI's "Send" vs "Resend" label tells the two apart."""
+    from django.utils import timezone
+
+    from apps.notifications.emails import send_welcome_engagement_email
+
+    from .models import WelcomeEmailSettings
+
+    if not WelcomeEmailSettings.load().enabled:
+        raise WelcomeEmailsDisabledError("Welcome emails are turned off. An admin must enable them first.")
+    if not engagement.person.email:
+        raise NoEmailError(f"{engagement.person.canonical_name} has no email address on file.")
+
+    send_welcome_engagement_email(engagement)
+
+    engagement.welcome_email_sent_at = timezone.now()
+    engagement.save(update_fields=["welcome_email_sent_at"])
+
+    AuditEntry.objects.create(
+        actor=actor,
+        actor_label=actor.email,
+        action=AuditEntry.Action.WELCOME_EMAIL_SENT,
+        bid=engagement.bid,
+        field="welcome_email",
+        new_value=f"{engagement.person.canonical_name} <{engagement.person.email}>",
+    )
+    return engagement

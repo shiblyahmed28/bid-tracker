@@ -68,10 +68,21 @@ export interface SettingsClient {
   canonical_name: string;
 }
 
+export type PersonType = "internal" | "external";
+
 export interface SettingsPerson {
   id: number;
   canonical_name: string;
   aliases: string[];
+  email: string | null;
+  person_type: PersonType;
+  organization: string;
+  phone: string;
+  is_active: boolean;
+  user: number | null;
+  user_email: string | null;
+  user_full_name: string | null;
+  usage_count: number;
 }
 
 export interface SettingsTeam {
@@ -90,14 +101,92 @@ export function updateSettingsClient(id: number, payload: Partial<SettingsClient
   return api.patch<SettingsClient>(`/settings/clients/${id}/`, payload).then((r) => r.data);
 }
 
-export function fetchSettingsPeople() {
-  return api.get<SettingsPerson[]>("/settings/people/").then((r) => r.data);
+export interface PersonFilters {
+  person_type?: PersonType;
+  is_active?: boolean;
+}
+
+export function fetchSettingsPeople(filters: PersonFilters = {}) {
+  return api.get<SettingsPerson[]>("/settings/people/", { params: filters }).then((r) => r.data);
 }
 export function createSettingsPerson(payload: { canonical_name: string }) {
   return api.post<SettingsPerson>("/settings/people/", payload).then((r) => r.data);
 }
 export function updateSettingsPerson(id: number, payload: Partial<SettingsPerson>) {
   return api.patch<SettingsPerson>(`/settings/people/${id}/`, payload).then((r) => r.data);
+}
+
+// ---------- Engaged resources: dedup/merge, engagement history, welcome email (§Phase 20) ----------
+
+export interface PersonDuplicateGroup {
+  people: SettingsPerson[];
+}
+
+export function fetchPersonDuplicates() {
+  return api.get<PersonDuplicateGroup[]>("/settings/people/duplicates/").then((r) => r.data);
+}
+
+export interface MergePersonsResult {
+  survivor: SettingsPerson;
+  engagements_reassigned: number;
+  engagements_skipped: number;
+  cam_reassigned: number;
+  sales_resource_reassigned: number;
+  bid_manager_reassigned: number;
+}
+
+export function mergePersons(survivorId: number, duplicateId: number) {
+  return api
+    .post<MergePersonsResult>(`/settings/people/${survivorId}/merge/`, { duplicate_id: duplicateId })
+    .then((r) => r.data);
+}
+
+export interface EngagementBidSummary {
+  id: string;
+  reference: string;
+  client_name: string;
+  submission_date: string | null;
+  stage: string;
+  result: string;
+}
+
+export interface PersonEngagement {
+  id: number;
+  bid: EngagementBidSummary;
+  engaged_from: string | null;
+  engaged_to: string | null;
+  days: number;
+  convenience_bill: number;
+  note: string;
+  welcome_email_sent_at: string | null;
+}
+
+export interface PersonEngagementHistory {
+  person: SettingsPerson;
+  engagements: PersonEngagement[];
+  totals: { days: number; convenience_bill: number };
+}
+
+export function fetchPersonEngagements(personId: number) {
+  return api.get<PersonEngagementHistory>(`/settings/people/${personId}/engagements/`).then((r) => r.data);
+}
+
+export interface WelcomeEmailSettingsData {
+  enabled: boolean;
+  updated_by_email: string | null;
+  updated_at: string;
+}
+
+export function fetchWelcomeEmailSettings() {
+  return api.get<WelcomeEmailSettingsData>("/settings/welcome-email/").then((r) => r.data);
+}
+
+export function updateWelcomeEmailSettings(enabled: boolean) {
+  return api.patch<WelcomeEmailSettingsData>("/settings/welcome-email/", { enabled }).then((r) => r.data);
+}
+
+export function sendWelcomeEmail(engagementId: number) {
+  return api.post<PersonEngagement>(`/settings/engagements/${engagementId}/welcome-email/`).then((r) => r.data);
 }
 
 export function fetchSettingsTeams() {

@@ -4,13 +4,17 @@ import { fetchUsers, type AdminUser } from "../api/accounts";
 import {
   fetchDeadlineRules,
   fetchNotificationPolicies,
+  fetchWelcomeEmailSettings,
   updateDeadlineRule,
   updateNotificationPolicy,
+  updateWelcomeEmailSettings,
   type DeadlineReminderRuleItem,
   type NotificationPolicyItem,
+  type WelcomeEmailSettingsData,
 } from "../api/settings";
 import { useToast } from "../components/ToastContext";
 import { Skeleton } from "../dashboard/Skeleton";
+import { formatFullDateTime } from "../lib/dateUtils";
 import { RoleMultiSelect } from "./RoleMultiSelect";
 import { UserMultiSelect } from "./UserMultiSelect";
 
@@ -23,12 +27,25 @@ export function NotificationsSettingsTab() {
   const [policies, setPolicies] = useState<NotificationPolicyItem[] | null>(null);
   const [rules, setRules] = useState<DeadlineReminderRuleItem[] | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [welcomeEmail, setWelcomeEmail] = useState<WelcomeEmailSettingsData | null>(null);
 
   useEffect(() => {
     fetchNotificationPolicies().then(setPolicies);
     fetchDeadlineRules().then(setRules);
     fetchUsers().then(setUsers);
+    fetchWelcomeEmailSettings().then(setWelcomeEmail);
   }, []);
+
+  async function handleWelcomeEmailToggle() {
+    if (!welcomeEmail) return;
+    try {
+      const updated = await updateWelcomeEmailSettings(!welcomeEmail.enabled);
+      setWelcomeEmail(updated);
+      showToast(`Welcome emails turned ${updated.enabled ? "on" : "off"}`);
+    } catch (err: any) {
+      showToast(err?.response?.data?.detail ?? "Could not update that setting.");
+    }
+  }
 
   async function handlePolicyChange(policy: NotificationPolicyItem, patch: Partial<NotificationPolicyItem>) {
     try {
@@ -152,6 +169,39 @@ export function NotificationsSettingsTab() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="chead">
+          <h2>Welcome emails</h2>
+          <span className="scope">Engaged resources · §Phase 20</span>
+        </div>
+        <div className="cbody">
+          {welcomeEmail === null ? (
+            <Skeleton height={60} />
+          ) : (
+            <>
+              <h3 style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                Send welcome emails
+                <div className={`toggle${welcomeEmail.enabled ? " on" : ""}`} onClick={handleWelcomeEmailToggle} />
+                <span className="hint" style={{ fontWeight: 400, textTransform: "none" }}>
+                  {welcomeEmail.enabled ? "On" : "Off"}
+                </span>
+              </h3>
+              <p className="hint" style={{ textTransform: "none", fontSize: 12.5, marginTop: 4 }}>
+                Default off — nothing sends until this is turned on. Individual sends still need an admin to
+                click Send on the Engaged Resources screen; this only unlocks that button.
+                {welcomeEmail.updated_by_email && (
+                  <> Last changed by {welcomeEmail.updated_by_email} ({formatFullDateTime(welcomeEmail.updated_at)}).</>
+                )}
+              </p>
+              <div className="banner b-warn" style={{ marginTop: 10 }}>
+                Run the duplicate-merge tool on Engaged Resources before turning this on — a duplicate record
+                could otherwise miss its welcome email entirely.
+              </div>
+            </>
+          )}
         </div>
       </div>
     </>

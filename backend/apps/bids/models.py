@@ -31,9 +31,9 @@ class Person(models.Model):
     """Sheet columns cam / sales-resource / bid-manager collapse into this
     table. Match case-insensitively on the whitespace-stripped name (§8).
 
-    email/person_type/organization/phone/is_active/user/welcome_email_sent_at
-    are app-native (§Phase 19 item 4) — sync never sets or reads them, it only
-    ever touches canonical_name/aliases via resolve_person (§8)."""
+    email/person_type/organization/phone/is_active/user are app-native
+    (§Phase 19 item 4) — sync never sets or reads them, it only ever touches
+    canonical_name/aliases via resolve_person (§8)."""
 
     class PersonType(models.TextChoices):
         INTERNAL = "internal", "Internal"
@@ -57,11 +57,6 @@ class Person(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="person_profile"
     )
-    # Phase 19 lists this as a Person-level field; Phase 20's welcome-email
-    # feature describes "never sends twice for the same bid" (per bid+person,
-    # not per person) — whoever builds that should re-check whether this
-    # needs to move onto BidEngagement instead of staying here.
-    welcome_email_sent_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["canonical_name"]
@@ -340,6 +335,11 @@ class BidEngagement(models.Model):
     days = models.PositiveIntegerField(default=0)
     convenience_bill = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
     note = models.TextField(blank=True)
+    # Per (bid, person) — not on Person — since the welcome email is scoped
+    # to one engagement (§Phase 20 item 5: "never sends twice for the same
+    # bid", "resend button per person per bid"). A Person-level timestamp
+    # couldn't represent "welcomed on bid A, not yet on bid B".
+    welcome_email_sent_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["bid", "person"], name="unique_bid_engagement_person")]
