@@ -113,6 +113,22 @@ def test_engagement_days_none_without_full_pair(make_bid):
 
 
 @pytest.mark.django_db
+class TestDeliveryTypeDisplay:
+    """§Phase 21 item 2 — email templates can't compose is_goods/is_works/
+    is_service inline, so this property does it once, reused everywhere."""
+
+    def test_no_flags_set(self, make_bid):
+        assert make_bid().delivery_type_display == "—"
+
+    def test_single_flag(self, make_bid):
+        assert make_bid(is_goods=True).delivery_type_display == "Goods"
+
+    def test_multiple_flags_comma_joined_in_order(self, make_bid):
+        bid = make_bid(is_goods=True, is_works=True, is_service=True)
+        assert bid.delivery_type_display == "Goods, Works, Service"
+
+
+@pytest.mark.django_db
 class TestEngagementAndCostTotals:
     """§Phase 19 item 3 — all computed from BidEngagement/BidCostLine, none
     stored on Bid."""

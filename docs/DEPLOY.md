@@ -157,6 +157,29 @@ cause, but it's worth ruling out `iptables -L` manually before re-running.
 3. Check `docker compose -f docker-compose.prod.yml --env-file .env.prod ps` for `healthy` on everything, and skim
    `docker compose -f docker-compose.prod.yml --env-file .env.prod logs --tail 100 backend worker beat`.
 
+## Email delivery (Gmail SMTP)
+
+`EMAIL_HOST_USER`/`EMAIL_HOST_PASSWORD` authenticate as one real Gmail account (a 16-character App
+Password, §18). Gmail requires the `From:` address to match that account's own address — if
+`DEFAULT_FROM_EMAIL` (§18) is on a different domain, Gmail either **rewrites** the visible sender to
+the authenticated account or **rejects the send outright**, silently breaking every outbound email
+until noticed. A system check (`apps.notifications.checks`) warns loudly on every `manage.py check`/
+`runserver`/`migrate` if the two domains don't match — don't ignore that warning.
+
+**To send legitimately as `noreply@spectrum-bd.com` while authenticating as a different Gmail
+account** (or vice versa), register the desired `DEFAULT_FROM_EMAIL` address as a verified **"Send
+mail as" alias** on the authenticating Gmail account first:
+
+1. Sign in to the Gmail account named by `EMAIL_HOST_USER`.
+2. **Settings → See all settings → Accounts and Import → Send mail as → Add another email address.**
+3. Enter the alias address (matching `DEFAULT_FROM_EMAIL`'s domain) and follow Gmail's verification
+   email — it's sent to that address, so you need inbox access there too.
+4. Once verified, Gmail accepts that address in `From:` for mail sent through this account without
+   rewriting or rejecting it, and the two settings values are allowed to differ safely.
+
+If you don't control that other domain's inbox (so you can't complete verification), the only safe
+fix is to set `DEFAULT_FROM_EMAIL` to an address on `EMAIL_HOST_USER`'s own domain instead.
+
 ## Rollback
 
 Docker Compose doesn't version images by itself here, so rollback means re-deploying the previous

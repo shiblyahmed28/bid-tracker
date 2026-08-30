@@ -17,6 +17,7 @@ class AuditEntry(models.Model):
         BID_RESTORE = "bid_restore", "Bid restored"
         CONFLICT_RESOLUTION = "conflict_resolution", "Sync conflict resolved"
         USER_CREATE = "user_create", "User created"
+        EXTERNAL_USER_CREATE = "external_user_create", "External-domain user created"
         USER_UPDATE = "user_update", "User updated"
         ROLE_CHANGE = "role_change", "Role changed"
         PASSWORD_RESET = "password_reset", "Password reset"

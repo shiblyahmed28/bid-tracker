@@ -33,6 +33,46 @@ from .utils import blacklist_jti, get_client_ip, get_user_agent, parse_user_agen
 USER_TRACKED_FIELDS = ["email", "full_name", "phone", "role", "is_active", "must_change_password"]
 
 
+def _send_password_reset_email(target, subject, force_change, actor_email):
+    """Bypasses apps.notifications.emails._send() entirely (no HTML template,
+    just a plain-text admin notice) — logged to SentEmail here directly so
+    §Phase 21 item 4's "every message" log still covers this second,
+    independent send path, not just the templated ones."""
+    from apps.notifications.models import SentEmail
+
+    message = (
+        f"An administrator ({actor_email}) reset your password.\n\n"
+        + (
+            "You will be asked to set a new password the next time you sign in.\n\n"
+            if force_change
+            else "Contact your administrator for your new password if you were not "
+            "told it directly.\n\n"
+        )
+        + "If you did not expect this, contact an administrator immediately."
+    )
+    try:
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[target.email],
+            fail_silently=False,
+        )
+        SentEmail.objects.create(
+            to_email=target.email, subject=subject, kind=SentEmail.Kind.PASSWORD_RESET, success=True
+        )
+        return True
+    except Exception as exc:
+        SentEmail.objects.create(
+            to_email=target.email,
+            subject=subject,
+            kind=SentEmail.Kind.PASSWORD_RESET,
+            success=False,
+            error=str(exc),
+        )
+        return False
+
+
 def _current_session_jti(request):
     return request.auth.get("session_jti") if request.auth else None
 
@@ -327,10 +367,15 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = serializer.save()
+        # A distinct, filterable action for external-domain creations
+        # (§Phase 21 item 1: "Audit every external-account creation with the
+        # admin's name") — the admin's name is already `actor`/`actor_label`
+        # on every AuditEntry, same as any other create.
+        action = AuditEntry.Action.EXTERNAL_USER_CREATE if user.is_external else AuditEntry.Action.USER_CREATE
         AuditEntry.objects.create(
             actor=self.request.user,
             actor_label=self.request.user.email,
-            action=AuditEntry.Action.USER_CREATE,
+            action=action,
             new_value=f"{user.email} ({user.role})",
             ip=get_client_ip(self.request),
             user_agent=get_user_agent(self.request),
@@ -401,24 +446,8 @@ class UserViewSet(viewsets.ModelViewSet):
 
         emailed = False
         if data["email_user"]:
-            emailed = bool(
-                send_mail(
-                    subject="Your Spectrum Bid Tracker password was reset",
-                    message=(
-                        f"An administrator ({request.user.email}) reset your password.\n\n"
-                        + (
-                            "You will be asked to set a new password the next time you sign in.\n\n"
-                            if data["force_change"]
-                            else "Contact your administrator for your new password if you were not "
-                            "told it directly.\n\n"
-                        )
-                        + "If you did not expect this, contact an administrator immediately."
-                    ),
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[target.email],
-                    fail_silently=True,
-                )
-            )
+            subject = "Your Spectrum Bid Tracker password was reset"
+            emailed = _send_password_reset_email(target, subject, data["force_change"], request.user.email)
 
         AuditEntry.objects.create(
             actor=request.user,

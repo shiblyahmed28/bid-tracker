@@ -223,6 +223,13 @@ class Bid(models.Model):
             return (self.engagement_to - self.engagement_from).days
         return None
 
+    @property
+    def delivery_type_display(self):
+        """Comma-joined label ("Goods, Service") from the three flags — for
+        email templates (§Phase 21 item 2), which can't compose this inline."""
+        parts = [name for present, name in [(self.is_goods, "Goods"), (self.is_works, "Works"), (self.is_service, "Service")] if present]
+        return ", ".join(parts) if parts else "—"
+
     # §Phase 19 item 3 — all computed, none stored. Each aggregates in the
     # database (never a Python loop over the related rows).
 

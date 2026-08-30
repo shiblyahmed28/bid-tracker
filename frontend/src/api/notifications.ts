@@ -50,3 +50,37 @@ export interface NotificationSettingsPatch {
 export function updateNotificationSettings(payload: NotificationSettingsPatch) {
   return api.patch<NotificationSettings>("/notifications/settings/", payload).then((r) => r.data);
 }
+
+// ---------- Sent email log (§Phase 21 item 4, admin-only) ----------
+
+export type SentEmailKind =
+  | "new_bid"
+  | "deadline"
+  | "policy_event"
+  | "digest"
+  | "welcome_engagement"
+  | "password_reset";
+
+export interface SentEmailItem {
+  id: number;
+  to_email: string;
+  subject: string;
+  kind: SentEmailKind;
+  bid: string | null;
+  bid_reference: string | null;
+  success: boolean;
+  error: string;
+  created_at: string;
+}
+
+export interface SentEmailFilters {
+  kind?: SentEmailKind | "";
+  success?: "true" | "false" | "";
+  recipient?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export function fetchSentEmails(filters: SentEmailFilters) {
+  return api.get<PaginatedResponse<SentEmailItem>>("/notifications/sent-log/", { params: filters }).then((r) => r.data);
+}

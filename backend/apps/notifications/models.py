@@ -111,6 +111,39 @@ class Notification(models.Model):
         return f"{self.get_kind_display()} → {self.user.email}: {self.title}"
 
 
+class SentEmail(models.Model):
+    """One row per outbound email attempt, success or failure (§Phase 21 item
+    4) — the "did that person get notified?" log, admin-only. Deliberately
+    carries no body/content field at all: several of these templates (new_bid,
+    deadline, policy_event, welcome_engagement) can include financial detail,
+    and never storing the body is a stronger guarantee than trying to scrub
+    or pattern-match "financial" content out of it after the fact."""
+
+    class Kind(models.TextChoices):
+        NEW_BID = "new_bid", "New bid"
+        DEADLINE = "deadline", "Deadline reminder"
+        POLICY_EVENT = "policy_event", "Policy event"
+        DIGEST = "digest", "Digest"
+        WELCOME_ENGAGEMENT = "welcome_engagement", "Welcome email"
+        PASSWORD_RESET = "password_reset", "Password reset"
+
+    to_email = models.EmailField()
+    subject = models.CharField(max_length=255)
+    kind = models.CharField(max_length=30, choices=Kind.choices)
+    bid = models.ForeignKey(
+        "bids.Bid", null=True, blank=True, on_delete=models.SET_NULL, related_name="sent_emails"
+    )
+    success = models.BooleanField()
+    error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.to_email} · {self.get_kind_display()} · {'sent' if self.success else 'failed'}"
+
+
 class PendingDigestItem(models.Model):
     """One row per (user, changed field) queued since that user's last digest
     email — batched into a single email per user per sync run (§9 step 7,

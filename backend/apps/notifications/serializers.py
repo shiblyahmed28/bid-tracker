@@ -1,6 +1,18 @@
 from rest_framework import serializers
 
-from .models import NOTIFICATION_FIELDS, DEFAULT_ON_FIELDS, Notification
+from .models import NOTIFICATION_FIELDS, DEFAULT_ON_FIELDS, Notification, SentEmail
+
+
+class SentEmailSerializer(serializers.ModelSerializer):
+    """§Phase 21 item 4 — admin-only "did that person get notified?" log.
+    No body field, ever (see SentEmail's own docstring)."""
+
+    bid_reference = serializers.CharField(source="bid.reference", default=None, read_only=True)
+
+    class Meta:
+        model = SentEmail
+        fields = ["id", "to_email", "subject", "kind", "bid", "bid_reference", "success", "error", "created_at"]
+        read_only_fields = fields
 
 
 class NotificationSerializer(serializers.ModelSerializer):

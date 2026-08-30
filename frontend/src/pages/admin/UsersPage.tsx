@@ -20,6 +20,13 @@ const ROLE_LABEL: Record<string, string> = { admin: "Admin", editor: "Editor", v
 const ROLE_TAG: Record<string, string> = { admin: "t-won", editor: "t-sub", viewer: "t-no" };
 const ROLES: Role[] = ["viewer", "editor", "admin"];
 
+// Mirrors the server's actual rule (ALLOWED_EMAIL_DOMAIN) closely enough for
+// UX purposes only — the server is still the real gate (§Phase 21 item 1).
+const COMPANY_EMAIL_RE = /^[^@\s]+@spectrum-bd\.com$/i;
+function isExternalEmail(email: string): boolean {
+  return email.trim() !== "" && !COMPANY_EMAIL_RE.test(email.trim());
+}
+
 function fieldErrors(data: unknown): string[] {
   if (!data || typeof data !== "object") return ["Something went wrong. Please try again."];
   const messages: string[] = [];
@@ -138,6 +145,7 @@ function AddUserModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const strength = passwordStrength(password);
+  const isExternal = isExternalEmail(email);
 
   async function handleSubmit() {
     setSaving(true);
@@ -147,7 +155,7 @@ function AddUserModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
         full_name: fullName,
         phone,
         email,
-        role,
+        role: isExternal ? "viewer" : role,
         password,
         must_change_password: forceChange,
       });
@@ -194,19 +202,21 @@ function AddUserModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
         <label className="req">Email</label>
         <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@spectrum-bd.com" />
         <p className="hint">
-          Must end in <b>@spectrum-bd.com</b>.
+          Company domain (<b>@spectrum-bd.com</b>) or any other domain for an external account — external
+          accounts are always viewers and can't be promoted.
         </p>
       </div>
       <div className="frow">
         <div className="field">
           <label className="req">Role</label>
-          <select value={role} onChange={(e) => setRole(e.target.value as Role)}>
+          <select value={isExternal ? "viewer" : role} disabled={isExternal} onChange={(e) => setRole(e.target.value as Role)}>
             {ROLES.map((r) => (
               <option key={r} value={r}>
                 {ROLE_LABEL[r]}
               </option>
             ))}
           </select>
+          {isExternal && <p className="hint">External-domain accounts are always viewers.</p>}
         </div>
         <div className="field">
           <label className="req">Temporary password</label>
@@ -250,6 +260,7 @@ function EditUserModal({
   const [isActive, setIsActive] = useState(user.is_active);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const isExternal = isExternalEmail(email);
 
   async function handleSubmit() {
     setSaving(true);
@@ -259,7 +270,7 @@ function EditUserModal({
         full_name: fullName,
         phone,
         email,
-        role,
+        role: isExternal ? "viewer" : role,
         is_active: isActive,
       });
       showToast(`${updated.full_name || updated.email} updated`);
@@ -301,15 +312,16 @@ function EditUserModal({
         <label className="req">Email</label>
         <input value={email} onChange={(e) => setEmail(e.target.value)} />
         <p className="hint">
-          Must end in <b>@spectrum-bd.com</b>.
+          Company domain (<b>@spectrum-bd.com</b>) or any other domain for an external account — external
+          accounts are always viewers and can't be promoted.
         </p>
       </div>
       <div className="frow">
         <div className="field">
           <label>Role</label>
           <select
-            value={role}
-            disabled={isSelf}
+            value={isExternal ? "viewer" : role}
+            disabled={isSelf || isExternal}
             onChange={(e) => setRole(e.target.value as Role)}
           >
             {ROLES.map((r) => (
@@ -319,6 +331,7 @@ function EditUserModal({
             ))}
           </select>
           {isSelf && <p className="hint">You cannot change your own role.</p>}
+          {!isSelf && isExternal && <p className="hint">External-domain accounts are always viewers.</p>}
         </div>
         <div className="field">
           <label>Status</label>
@@ -400,6 +413,11 @@ export function UsersPage() {
                   </td>
                   <td className="num" style={{ fontSize: 11.5 }}>
                     {u.email}
+                    {u.is_external && (
+                      <span className="tag t-pend" style={{ marginLeft: 6 }} title="Not on the company domain">
+                        External
+                      </span>
+                    )}
                   </td>
                   <td>
                     <span className={`tag ${ROLE_TAG[u.role]}`}>{ROLE_LABEL[u.role]}</span>

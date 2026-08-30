@@ -6,6 +6,7 @@ import {
   GridIcon,
   KeyIcon,
   ListIcon,
+  MailIcon,
   PlusIcon,
   SettingsIcon,
   ShieldIcon,
@@ -59,6 +60,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/admin/sync", label: "Sync history", icon: SyncIcon, capability: "view_sync_history" },
       { to: "/admin/audit", label: "Audit log", icon: ShieldIcon, capability: "view_audit_log" },
+      { to: "/admin/email-log", label: "Email log", icon: MailIcon, capability: "view_email_log" },
       { to: "/admin/users", label: "Users", icon: UsersIcon, capability: "manage_users" },
       { to: "/settings", label: "Master settings", icon: SettingsIcon, capability: "access_master_settings" },
     ],
@@ -82,6 +84,7 @@ const PAGE_META: PageMeta[] = [
   { match: (p) => p === "/notifications", title: "Notifications", crumb: "Account" },
   { match: (p) => p === "/admin/sync", title: "Sync history", crumb: "Administration" },
   { match: (p) => p === "/admin/audit", title: "Audit log", crumb: "Administration" },
+  { match: (p) => p === "/admin/email-log", title: "Email log", crumb: "Administration" },
   { match: (p) => p === "/admin/users", title: "Users", crumb: "Administration" },
   { match: (p) => p === "/settings", title: "Master settings", crumb: "Administration" },
 ];

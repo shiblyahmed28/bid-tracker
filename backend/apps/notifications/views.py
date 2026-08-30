@@ -5,9 +5,10 @@ from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsAuthenticatedViewer
 from apps.bids.pagination import StandardPagination
+from apps.settings_admin.capabilities import HasCapability
 
-from .models import Notification, NotificationSubscription
-from .serializers import NotificationSerializer, NotificationSettingsSerializer
+from .models import Notification, NotificationSubscription, SentEmail
+from .serializers import NotificationSerializer, NotificationSettingsSerializer, SentEmailSerializer
 
 
 class NotificationListView(generics.ListAPIView):
@@ -38,6 +39,38 @@ class NotificationMarkAllReadView(APIView):
     def post(self, request):
         updated = Notification.objects.filter(user=request.user, read=False).update(read=True)
         return Response({"updated": updated}, status=200)
+
+
+class SentEmailListView(generics.ListAPIView):
+    """GET /notifications/sent-log/ — admin-only "did that person get
+    notified?" log (§Phase 21 item 4). Filterable by ?kind=&success=
+    (true|false)&recipient=(contains)&bid=(uuid)."""
+
+    permission_classes = [HasCapability("view_email_log")]
+    serializer_class = SentEmailSerializer
+    pagination_class = StandardPagination
+
+    def get_queryset(self):
+        qs = SentEmail.objects.all()
+        params = self.request.query_params
+
+        kind = params.get("kind")
+        if kind:
+            qs = qs.filter(kind=kind)
+
+        success = params.get("success")
+        if success is not None:
+            qs = qs.filter(success=success.lower() in ("1", "true", "yes"))
+
+        recipient = params.get("recipient")
+        if recipient:
+            qs = qs.filter(to_email__icontains=recipient)
+
+        bid = params.get("bid")
+        if bid:
+            qs = qs.filter(bid_id=bid)
+
+        return qs
 
 
 class NotificationSettingsView(APIView):

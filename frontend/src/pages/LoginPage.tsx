@@ -3,8 +3,6 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
 
-const EMAIL_DOMAIN_RE = /^[^@\s]+@spectrum-bd\.com$/i;
-
 export function LoginPage() {
   const { user, login } = useAuth();
   const navigate = useNavigate();
@@ -12,7 +10,6 @@ export function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [domainError, setDomainError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -25,13 +22,9 @@ export function LoginPage() {
     event.preventDefault();
     setServerError(null);
 
-    // Client-side check for feedback only — the server is the real gate (§14).
-    if (!EMAIL_DOMAIN_RE.test(email.trim())) {
-      setDomainError("Use your @spectrum-bd.com address.");
-      return;
-    }
-    setDomainError(null);
-
+    // No client-side domain gate (§Phase 21 item 1) — admin-created external
+    // accounts are real, valid logins now. The server remains the only
+    // authority on which accounts exist and what they're allowed (§14).
     setSubmitting(true);
     try {
       await login(email.trim(), password);
@@ -60,13 +53,9 @@ export function LoginPage() {
               type="email"
               autoComplete="username"
               value={email}
-              onChange={(event) => {
-                setEmail(event.target.value);
-                setDomainError(null);
-              }}
+              onChange={(event) => setEmail(event.target.value)}
               required
             />
-            {domainError && <p className="err">{domainError}</p>}
           </div>
 
           <div className="field">
@@ -89,8 +78,7 @@ export function LoginPage() {
         </form>
 
         <p className="login-hint">
-          Internal tool for Spectrum Engineering Consortium (Pvt.) Ltd. Only{" "}
-          <b>@spectrum-bd.com</b> addresses are accepted.
+          Internal tool for Spectrum Engineering Consortium (Pvt.) Ltd.
         </p>
       </div>
     </div>

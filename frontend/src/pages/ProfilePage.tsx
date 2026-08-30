@@ -33,7 +33,14 @@ function ProfileCard() {
 
   if (!user) return null;
 
-  const emailInvalid = email.trim() !== "" && !COMPANY_EMAIL_RE.test(email.trim());
+  // §Phase 21 item 1: an admin-created external account may already have a
+  // non-company email by design — that existing value must stay saveable
+  // (so the user can still edit full_name/phone), only a *new* non-company
+  // address is rejected. Comparing against user.email, not just "did they
+  // touch the field", so it also covers the common "type it, retype the
+  // same value" case without false-flagging.
+  const emailUnchanged = email.trim() === user.email;
+  const emailInvalid = !emailUnchanged && email.trim() !== "" && !COMPANY_EMAIL_RE.test(email.trim());
 
   async function handleSave() {
     if (emailInvalid) return;
@@ -93,10 +100,12 @@ function ProfileCard() {
           />
           {emailInvalid && (
             <p className="err">
-              Only <b>@spectrum-bd.com</b> addresses are allowed.
+              A new address must be on the <b>@spectrum-bd.com</b> domain.
             </p>
           )}
-          <p className="hint">Company domain only. Changing this changes your sign-in address.</p>
+          <p className="hint">
+            Changing this changes your sign-in address, and a new address must be on the company domain.
+          </p>
         </div>
 
         <div className="frow">

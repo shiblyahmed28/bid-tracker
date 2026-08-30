@@ -69,6 +69,7 @@ export interface AdminUser {
   phone: string;
   role: Role;
   is_active: boolean;
+  is_external: boolean;
   must_change_password: boolean;
   date_joined: string;
 }

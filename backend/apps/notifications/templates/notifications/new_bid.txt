@@ -4,5 +4,10 @@ New bid: {{ bid.client.name }}
 
 Reference: {{ bid.reference }}
 Submission: {{ bid.submission_date|default:"—" }}
+Published: {{ bid.published_date|default:"—" }}
+Team: {{ bid.team.name|default:"—" }}
+Delivery: {{ bid.delivery_type_display }}
+CAM: {{ bid.cam.canonical_name|default:"—" }}
+Bid manager: {{ bid.bid_manager.canonical_name|default:"—" }}
 
 Manage your notification settings: {{ unsubscribe_url }}

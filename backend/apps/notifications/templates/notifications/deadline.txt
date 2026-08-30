@@ -2,5 +2,10 @@ Submission due in {{ days_before|default:7 }} days
 
 {{ bid.client.name }} — {{ bid.reference }}
 Submission date: {{ bid.submission_date }}
+Published: {{ bid.published_date|default:"—" }}
+Team: {{ bid.team.name|default:"—" }}
+Delivery: {{ bid.delivery_type_display }}
+CAM: {{ bid.cam.canonical_name|default:"—" }}
+Bid manager: {{ bid.bid_manager.canonical_name|default:"—" }}
 
 Manage your notification settings: {{ unsubscribe_url }}

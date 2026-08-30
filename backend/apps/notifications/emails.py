@@ -2,18 +2,40 @@ from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 
+from .models import SentEmail
+
 
 def _send(subject, template_prefix, context, to_email, include_unsubscribe=True):
     """include_unsubscribe=False for recipients with no login account to
     manage (e.g. welcome_engagement's Person recipients, §Phase 20 item 5) —
-    _base.html only renders the footer link when unsubscribe_url is present."""
+    _base.html only renders the footer link when unsubscribe_url is present.
+
+    Logs a SentEmail row for every attempt (§Phase 21 item 4) — success or
+    failure — never the rendered body. `fail_silently` used to swallow send
+    errors entirely with no record of them; catching the exception here
+    keeps that same external behavior (callers still never see it raised)
+    while capturing the error message for the log."""
     if include_unsubscribe:
         context = {**context, "unsubscribe_url": f"{settings.FRONTEND_BASE_URL}/notifications"}
     text_body = render_to_string(f"notifications/{template_prefix}.txt", context)
     html_body = render_to_string(f"notifications/{template_prefix}.html", context)
     message = EmailMultiAlternatives(subject, text_body, settings.DEFAULT_FROM_EMAIL, [to_email])
     message.attach_alternative(html_body, "text/html")
-    message.send(fail_silently=True)
+
+    try:
+        message.send(fail_silently=False)
+        SentEmail.objects.create(
+            to_email=to_email, subject=subject, kind=template_prefix, bid=context.get("bid"), success=True
+        )
+    except Exception as exc:
+        SentEmail.objects.create(
+            to_email=to_email,
+            subject=subject,
+            kind=template_prefix,
+            bid=context.get("bid"),
+            success=False,
+            error=str(exc),
+        )
 
 
 def send_new_bid_email(user, bid):

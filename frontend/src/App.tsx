@@ -18,6 +18,7 @@ import { NotificationsPage } from "./pages/NotificationsPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { SyncHistoryPage } from "./pages/admin/SyncHistoryPage";
 import { AuditLogPage } from "./pages/admin/AuditLogPage";
+import { EmailLogPage } from "./pages/admin/EmailLogPage";
 import { UsersPage } from "./pages/admin/UsersPage";
 import { SettingsPage } from "./pages/admin/SettingsPage";
 
@@ -50,6 +51,9 @@ function App() {
                 </Route>
                 <Route element={<CapabilityRoute requires="view_audit_log" />}>
                   <Route path="/admin/audit" element={<AuditLogPage />} />
+                </Route>
+                <Route element={<CapabilityRoute requires="view_email_log" />}>
+                  <Route path="/admin/email-log" element={<EmailLogPage />} />
                 </Route>
                 <Route element={<CapabilityRoute requires="manage_users" />}>
                   <Route path="/admin/users" element={<UsersPage />} />

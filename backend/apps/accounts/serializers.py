@@ -9,6 +9,7 @@ from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import User, UserSession
+from .validators import email_domain_validator, is_external_domain
 
 # ROTATE_REFRESH_TOKENS + BLACKLIST_AFTER_ROTATION (settings.SIMPLE_JWT) means the
 # first of two refresh calls presenting the *same* refresh token wins the
@@ -55,14 +56,27 @@ class MeSerializer(serializers.ModelSerializer):
 
 
 class ProfileSerializer(serializers.ModelSerializer):
-    """PATCH /auth/profile/ — full_name, email and phone only (§14). Email keeps
-    the model's domain validator and unique constraint (excluding self on update)
-    since ModelSerializer copies both from the field automatically."""
+    """PATCH /auth/profile/ — full_name, email and phone only (§14). Self-
+    service profile edits stay restricted to the company domain for every
+    role, including admin (§Phase 21 item 1) — the model no longer carries
+    this validator itself (UserSerializer needs to allow any domain for
+    admin-created accounts), so it's applied explicitly here instead.
+
+    An admin-created external account may already have a non-company email
+    (by design) — that existing value must stay saveable, or that person
+    could never update even their phone number. Only a *change* to a new,
+    non-company address is rejected."""
 
     class Meta:
         model = User
         fields = ["id", "email", "full_name", "phone", "role", "must_change_password", "date_joined"]
         read_only_fields = ["id", "role", "must_change_password", "date_joined"]
+
+    def validate_email(self, value):
+        if self.instance and value == self.instance.email:
+            return value
+        email_domain_validator(value)
+        return value
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -105,7 +119,15 @@ class AdminPasswordResetSerializer(serializers.Serializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    """Admin-only (the view already requires manage_users), so — unlike
+    ProfileSerializer — email carries no domain restriction here: admins may
+    create accounts on any domain (§Phase 21 item 1). What that domain does
+    gate is role: an external-domain account must be a viewer and can never
+    be promoted, checked once in validate() so it covers both create and a
+    later attempt to promote/re-email an existing external account."""
+
     password = serializers.CharField(write_only=True, required=False, style={"input_type": "password"})
+    is_external = serializers.ReadOnlyField()
 
     class Meta:
         model = User
@@ -116,6 +138,7 @@ class UserSerializer(serializers.ModelSerializer):
             "phone",
             "role",
             "is_active",
+            "is_external",
             "must_change_password",
             "date_joined",
             "notifications_muted",
@@ -124,12 +147,19 @@ class UserSerializer(serializers.ModelSerializer):
             "email_newbid",
             "password",
         ]
-        read_only_fields = ["id", "date_joined"]
+        read_only_fields = ["id", "date_joined", "is_external"]
 
     def validate(self, attrs):
         if self.instance is None and not attrs.get("password"):
             raise serializers.ValidationError(
                 {"password": "This field is required when creating a user."}
+            )
+
+        email = attrs.get("email", self.instance.email if self.instance else None)
+        role = attrs.get("role", self.instance.role if self.instance else attrs.get("role", User.Role.VIEWER))
+        if email and role and role != User.Role.VIEWER and is_external_domain(email):
+            raise serializers.ValidationError(
+                {"role": "External-domain accounts can only be viewers and can't be promoted."}
             )
         return attrs
 

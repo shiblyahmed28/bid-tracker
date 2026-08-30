@@ -41,7 +41,9 @@ Private Google Sheet ──(service account, read + one narrow write)──▶ D
 6. **Sheet data is dirty.** Every parser handles failure without crashing the run. Bad rows are quarantined, not fatal.
 7. **Timezone is `Asia/Dhaka`.** Store UTC, render Dhaka.
 8. **API versioned at `/api/v1/`** from the first endpoint.
-9. **Only `@spectrum-bd.com` email addresses may exist as accounts.** Validated on the server.
+9. **`@spectrum-bd.com` is the default account domain.** Validated on the server for every self-service
+   profile edit, every role. Admins may create accounts on other domains (§14 Phase 21 item 1), but
+   those accounts are forced to viewer and can never be promoted.
 10. **Every screen is responsive** down to 380px.
 
 ---
@@ -435,6 +437,8 @@ AuditEntry        actor FK null, actor_label, action, bid FK null, field,
                   old_value, new_value, ip, user_agent, created_at   # append-only
 NotificationSubscription   user FK, field_name, enabled
 Notification      user FK, kind, title, body, bid FK, read, created_at
+SentEmail         to_email, subject, kind, bid FK null, success bool,          # NEW (Phase 21 item 4)
+                  error, created_at   # no body field, ever — see §16
 ```
 
 ---
@@ -455,6 +459,7 @@ Notification      user FK, kind, title, body, bid FK, read, created_at
 | User management · reset any password | ❌ | ❌ | ✅ |
 | Merge engaged resources · view engagement history | ❌ | ❌ | ✅ |
 | Toggle and send welcome emails (`manage_welcome_emails`) | ❌ | ❌ | ✅ |
+| View the email delivery log (`view_email_log`) | ❌ | ❌ | ✅ |
 
 Enforce with DRF permission classes on **every** viewset. Never rely on a hidden frontend button.
 Sync history and the audit log are admin-only. This is explicit and not negotiable.
@@ -547,6 +552,33 @@ Shows the user's details and lets them edit **full name, email, phone**.
 Email must match `^[^@\s]+@spectrum-bd\.com$` — validated client-side for feedback and
 **server-side as the real rule**. Role and join date are read-only; only an admin changes a role.
 
+This restriction is on the **profile edit**, not the model — see External accounts below. An
+account that already has a non-company email (because an admin created it that way) can still be
+saved unchanged; only a *new* non-company address is rejected, so that account isn't locked out of
+saving its own phone number.
+
+### External accounts (Phase 21 item 1)
+
+`User.email` itself carries no domain restriction — only `@spectrum-bd.com` accounts existed for a
+while, but the model needs to allow any domain now that admins can create external ones, and a
+single field can't enforce two different rules for two different writers. The restriction lives in
+the two places that actually need it:
+
+- **`ProfileSerializer`** (self-service, `PATCH /auth/profile/`) — always company-domain-only, for
+  every role including admin's own profile. This is what non-negotiable §2.9 means by "default".
+- **`UserSerializer`** (admin-only, `/users/`, gated by `manage_users`) — any domain allowed, but an
+  external-domain account is **forced to viewer and can never be promoted**: creating one with a
+  non-viewer role, or later trying to promote an existing external account, is rejected with a
+  `role` error. Checked once in `validate()`, so it covers create and update the same way.
+
+External accounts are **badged visibly** in the Users list (`is_external`, computed from the email
+domain — not stored). Creating one writes a distinct audit action
+(`AuditEntry.Action.EXTERNAL_USER_CREATE`) naming the creating admin, alongside the ordinary
+`USER_CREATE` used for company-domain accounts.
+
+The login page has no client-side domain gate — a valid account can now be on any domain, so only
+the server decides who can sign in.
+
 ### Password change
 Current + new + confirm. Minimum 10 characters with a strength meter.
 **Changing a password revokes every other session** but keeps the current one alive.
@@ -599,6 +631,30 @@ Deduplicate so a bid never alerts twice.
 user per sync run**. Unbatched, a sync touching 40 bids across 15 users sends 600 emails and blows
 Gmail's ~500/day cap in a single run. Deadline and new-bid emails send immediately.
 
+**Email content** (Phase 21 item 2) — new-bid, deadline and change-notification emails all carry
+CAM, bid manager, team, published date and delivery type, alongside their original client/
+description/reference/submission date (or result/submission status for a change notification). The
+HTML and plain-text versions are always kept in step. `Bid.delivery_type_display` composes the
+"Goods, Service"-style label from the three flags — templates can't do that composition inline.
+
+### Email delivery log (Phase 21 item 4)
+
+A `SentEmail` row is written for **every** outbound email, success or failure — recipient, subject,
+kind, related bid, and the error message if it failed. It carries **no body/content field at all**:
+several of these templates can include financial detail, and never storing the body is a stronger
+guarantee than trying to detect and scrub "financial" content after the fact. Covers both send
+paths: the templated ones (`apps.notifications.emails._send`) and the plain-text admin-password-
+reset email, which bypasses that helper entirely. Admin-only (`view_email_log` capability),
+filterable by kind/success/recipient — the answer to "did that person get notified?".
+
+### DEFAULT_FROM_EMAIL vs. the SMTP account (Phase 21 item 3)
+
+Gmail requires the `From:` address to match the authenticated account (`EMAIL_HOST_USER`) or a
+verified "Send mail as" alias on it — otherwise it rewrites or rejects the send. A Django system
+check (`apps.notifications.checks`) warns loudly on every `manage.py check`/`runserver`/`migrate` if
+`DEFAULT_FROM_EMAIL`'s domain doesn't match `EMAIL_HOST_USER`'s. See `docs/DEPLOY.md` for how to
+register the alias.
+
 ---
 
 ## 17. API
@@ -646,6 +702,8 @@ POST   /settings/people/{id}/merge/  {"duplicate_id": id}         manage_choice_
 GET    /settings/people/{id}/engagements/                         manage_choice_lists
 GET/PATCH /settings/welcome-email/   {"enabled": bool}            manage_welcome_emails
 POST   /settings/engagements/{id}/welcome-email/                  manage_welcome_emails
+
+GET    /notifications/sent-log/     ?kind=&success=&recipient=    view_email_log (§Phase 21 item 4)
 ```
 
 **Default when no dates given: submission date from today−7 to today+7.**
@@ -740,7 +798,14 @@ resources and engagement period is demo-only and must not be ported.
 - ❌ Sending one email per changed bid per user.
 - ❌ Shipping all 575 rows to the browser. Paginate server-side.
 - ❌ Rendering 365 daily bars. Bucket adaptively.
-- ❌ Accepting a non-`@spectrum-bd.com` email anywhere.
+- ❌ Rejecting a non-`@spectrum-bd.com` email on `/users/` (admin-only) — admins may create accounts
+  on any domain now (§14 Phase 21 item 1). The company-domain restriction still applies to every
+  self-service profile edit, for every role.
+- ❌ Letting an external-domain account be anything but a viewer, on create *or* promotion.
+- ❌ Logging an email's rendered body anywhere (§16 Phase 21 item 4) — `SentEmail` never has a body
+  field, specifically so financial detail in a bid email can never leak through the delivery log.
+- ❌ Setting `DEFAULT_FROM_EMAIL` to a domain the authenticated SMTP account can't send as, without
+  registering it as a verified Gmail "Send mail as" alias first (§16 Phase 21 item 3, `docs/DEPLOY.md`).
 - ❌ Showing sync history or the audit log to a non-admin.
 - ❌ Exposing password hashes, or letting an admin read an existing password.
 - ❌ Committing `.env`, the service-account JSON, or the Gmail App Password.

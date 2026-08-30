@@ -4,7 +4,7 @@ from django.db import models
 from django.utils import timezone
 
 from .managers import UserManager
-from .validators import email_domain_validator
+from .validators import is_external_domain
 
 
 class User(AbstractUser):
@@ -14,9 +14,13 @@ class User(AbstractUser):
         VIEWER = "viewer", "Viewer"
 
     username = None
-    email = models.EmailField(
-        "email address", unique=True, validators=[email_domain_validator]
-    )
+    # No domain validator here (§Phase 21 item 1) — admins may create accounts
+    # on any domain now. The company-domain restriction lives in
+    # ProfileSerializer.validate_email (self-service profile edits only, for
+    # every role including admin) and UserSerializer.validate (external
+    # accounts forced to viewer), not on the model, since the same field
+    # needs different rules depending on who's writing to it.
+    email = models.EmailField("email address", unique=True)
     full_name = models.CharField(max_length=150, blank=True)
     phone = models.CharField(max_length=32, blank=True)
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.VIEWER)
@@ -41,6 +45,13 @@ class User(AbstractUser):
     @property
     def is_admin(self):
         return self.role == self.Role.ADMIN
+
+    @property
+    def is_external(self):
+        """§Phase 21 item 1 — an account whose email isn't on the company
+        domain. Forced to viewer and un-promotable (UserSerializer.validate);
+        badged in the Users list."""
+        return is_external_domain(self.email)
 
     @property
     def is_editor_or_above(self):
