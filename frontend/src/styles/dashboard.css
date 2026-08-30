@@ -196,7 +196,7 @@
 /* ---------- KPI ---------- */
 .kpis {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 13px;
   margin-bottom: 13px;
 }

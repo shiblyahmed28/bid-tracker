@@ -24,6 +24,9 @@ export interface DashboardSummary {
   result_breakdown: Record<string, number>;
   security_locked: CurrencyTotals;
   security_live: { count: number; locked: CurrencyTotals };
+  // §Phase 22 item 3 — summary figure only; the full breakdown lives on
+  // each bid's own detail page and its PDF export.
+  management_cost: CurrencyTotals;
 }
 
 export interface TrendPoint {

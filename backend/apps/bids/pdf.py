@@ -33,3 +33,23 @@ def render_bid_register_pdf(queryset, columns, filters_caption, generated_by_lab
         },
     )
     return HTML(string=html_string).write_pdf()
+
+
+def render_bid_detail_pdf(bid):
+    """§Phase 22 item 3 — the one place besides the detail page itself that
+    carries the *full* cost breakdown (register/dashboard only ever get the
+    summary figure). `bid` should already have engagements__person and
+    cost_lines prefetched by the caller."""
+    generated_at = timezone.localtime().strftime(TIMESTAMP_FORMAT) + " (Asia/Dhaka)"
+
+    html_string = render_to_string(
+        "bids/detail_pdf.html",
+        {
+            "bid": bid,
+            "engagements": bid.engagements.all(),
+            "cost_lines": bid.cost_lines.with_line_number(),
+            "generated_at": generated_at,
+            "logo_data_uri": _LOGO_DATA_URI,
+        },
+    )
+    return HTML(string=html_string).write_pdf()

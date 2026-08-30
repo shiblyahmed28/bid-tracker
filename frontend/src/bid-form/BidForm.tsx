@@ -3,7 +3,8 @@ import { useState, type FormEvent } from "react";
 import type { BidDetail, BidWritePayload } from "../api/bids";
 import { formatMoneyPreview, parseMoneyPreview } from "../lib/moneyParse";
 import { ComboInput } from "./ComboInput";
-import { EngagedResourcesSelect } from "./EngagedResourcesSelect";
+import { CostLineRowsEditor, type CostLineRow } from "./CostLineRowsEditor";
+import { EngagementRowsEditor, type EngagementRow } from "./EngagementRowsEditor";
 import { useFormOptions } from "./useFormOptions";
 
 interface FormState {
@@ -13,7 +14,8 @@ interface FormState {
   salesResourceName: string;
   bidManagerName: string;
   teamId: string;
-  engagedIds: number[];
+  engagements: EngagementRow[];
+  costLines: CostLineRow[];
   engagementFrom: string;
   engagementTo: string;
   stage: string;
@@ -49,7 +51,22 @@ function initialFormState(bid?: BidDetail | null): FormState {
     salesResourceName: bid?.sales_resource?.canonical_name ?? "",
     bidManagerName: bid?.bid_manager?.canonical_name ?? "",
     teamId: bid?.team ? String(bid.team.id) : "",
-    engagedIds: bid?.engaged_resources.map((p) => p.id) ?? [],
+    engagements:
+      bid?.engagements.map((e) => ({
+        personId: e.person.id,
+        engagedFrom: e.engaged_from ?? "",
+        engagedTo: e.engaged_to ?? "",
+        days: e.days ? String(e.days) : "",
+        convenienceBill: e.convenience_bill ? String(e.convenience_bill) : "",
+      })) ?? [],
+    costLines:
+      bid?.cost_lines.map((c) => ({
+        description: c.description,
+        date: c.date ?? "",
+        reference: c.reference,
+        amount: String(c.amount),
+        currency: c.currency,
+      })) ?? [],
     engagementFrom: bid?.engagement_from ?? "",
     engagementTo: bid?.engagement_to ?? "",
     stage: bid?.stage ?? "",
@@ -89,7 +106,24 @@ function buildPayload(form: FormState): BidWritePayload {
     sales_resource_name: form.salesResourceName.trim(),
     bid_manager_name: form.bidManagerName.trim(),
     team: form.teamId ? Number(form.teamId) : null,
-    engaged_resources: form.engagedIds,
+    engagements: form.engagements
+      .filter((row) => row.personId !== "")
+      .map((row) => ({
+        person: Number(row.personId),
+        engaged_from: row.engagedFrom || null,
+        engaged_to: row.engagedTo || null,
+        days: row.days ? Number(row.days) : 0,
+        convenience_bill: row.convenienceBill || "0",
+      })),
+    cost_lines: form.costLines
+      .filter((row) => row.description.trim() !== "")
+      .map((row) => ({
+        description: row.description.trim(),
+        date: row.date || null,
+        reference: row.reference.trim(),
+        amount: row.amount || "0",
+        currency: row.currency,
+      })),
     engagement_from: form.engagementFrom || null,
     engagement_to: form.engagementTo || null,
     stage: form.stage.trim(),
@@ -273,7 +307,7 @@ export function BidForm({ initial, onSubmit, onCancel, submitLabel }: BidFormPro
           </div>
           <div />
         </div>
-        <EngagedResourcesSelect people={people} selectedIds={form.engagedIds} onChange={(ids) => set("engagedIds", ids)} />
+        <EngagementRowsEditor people={people} rows={form.engagements} onChange={(rows) => set("engagements", rows)} />
         <div className="frow">
           <div className="field">
             <label>Engagement from</label>
@@ -302,6 +336,11 @@ export function BidForm({ initial, onSubmit, onCancel, submitLabel }: BidFormPro
             days
           </p>
         )}
+      </div>
+
+      <div className="form-section">
+        <h3>Cost breakdown</h3>
+        <CostLineRowsEditor rows={form.costLines} onChange={(rows) => set("costLines", rows)} />
       </div>
 
       <div className="form-section">

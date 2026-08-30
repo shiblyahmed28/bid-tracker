@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.db import connection, models
 from django.db.models import Count, F, OuterRef, Q, Subquery, Sum, Window
-from django.db.models.functions import RowNumber
+from django.db.models.functions import Coalesce, RowNumber
 from django.utils import timezone
 
 
@@ -96,6 +96,35 @@ class BidQuerySet(models.QuerySet):
         )
         return self.annotate(serial=Subquery(rank))
 
+    def with_management_cost(self):
+        """Per-bid management_cost, split BDT/USD (§Phase 22 item 3's
+        dashboard/register *summary* figure) — three correlated subqueries,
+        not Bid.management_cost's per-instance aggregate, so a 50-row page
+        costs a handful of queries total, not N (same reasoning as
+        with_serial() above)."""
+        cost_lines_bdt = (
+            BidCostLine.objects.filter(bid=OuterRef("pk"), currency=Bid.Currency.BDT)
+            .order_by().values("bid").annotate(total=Sum("amount")).values("total")
+        )
+        cost_lines_usd = (
+            BidCostLine.objects.filter(bid=OuterRef("pk"), currency=Bid.Currency.USD)
+            .order_by().values("bid").annotate(total=Sum("amount")).values("total")
+        )
+        convenience_bill = (
+            BidEngagement.objects.filter(bid=OuterRef("pk"))
+            .order_by().values("bid").annotate(total=Sum("convenience_bill")).values("total")
+        )
+        money_field = models.DecimalField(max_digits=14, decimal_places=2)
+        return self.annotate(
+            _cost_lines_bdt=Subquery(cost_lines_bdt, output_field=money_field),
+            _cost_lines_usd=Subquery(cost_lines_usd, output_field=money_field),
+            _convenience_bill=Subquery(convenience_bill, output_field=money_field),
+        ).annotate(
+            management_cost_bdt=Coalesce(F("_cost_lines_bdt"), Decimal("0"))
+            + Coalesce(F("_convenience_bill"), Decimal("0")),
+            management_cost_usd=Coalesce(F("_cost_lines_usd"), Decimal("0")),
+        )
+
 
 class BidManager(models.Manager):
     def get_queryset(self):
@@ -103,6 +132,9 @@ class BidManager(models.Manager):
 
     def with_serial(self):
         return self.get_queryset().with_serial()
+
+    def with_management_cost(self):
+        return self.get_queryset().with_management_cost()
 
 
 class Bid(models.Model):

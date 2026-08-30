@@ -48,6 +48,11 @@ def apply_search(queryset, search_term):
 def filtered_export_queryset(queryset, query_params):
     queryset = BidFilter(query_params, queryset=queryset).qs
     queryset = apply_search(queryset, query_params.get("search"))
+    # §Phase 22 item 3's management_cost column reads the annotated
+    # management_cost_bdt/usd, not Bid.management_cost's per-instance
+    # aggregate — a full-register CSV/PDF export iterates every filtered
+    # row, so the per-instance property would be an N+1 query multiplier.
+    queryset = queryset.with_management_cost()
     # Newest first (§18 Phase 18 item 1) — matches the register/API default,
     # so PDF and CSV exports read top-to-bottom the same as the on-screen table.
     return queryset.order_by("-arrival_seq")

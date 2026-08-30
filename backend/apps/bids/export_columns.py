@@ -49,6 +49,15 @@ def _engagement_days(bid):
     return f"{bid.engagement_days}d" if bid.engagement_days is not None else "—"
 
 
+def _management_cost_cell(bid):
+    bdt = getattr(bid, "management_cost_bdt", None)
+    usd = getattr(bid, "management_cost_usd", None)
+    if bdt is None:
+        return "—"
+    text = f"৳{bdt:,.2f}"
+    return f"{text} · ${usd:,.2f}" if usd else text
+
+
 @dataclass
 class ExportColumn:
     key: str
@@ -82,6 +91,10 @@ COLUMNS = [
     ExportColumn("security_mode", "Security mode", "Financial", False, lambda b: b.security_mode or "—"),
     ExportColumn("security_amount", "Security amount", "Financial", False, lambda b: _money_cell(b.security_amount_raw)),
     ExportColumn("credit_facility", "Credit facility", "Financial", False, lambda b: _money_cell(b.credit_facility_raw)),
+    # §Phase 22 item 3 — summary figure only (queryset-annotated, see
+    # filtered_export_queryset's with_management_cost() call); the full
+    # breakdown lives on the bid's own detail page and its PDF.
+    ExportColumn("management_cost", "Management cost", "Financial", False, _management_cost_cell),
     ExportColumn("bg_issue_date", "BG issue date", "Financial", False, lambda b: _dmy(b.bg_issue_date)),
     ExportColumn("bg_reference", "BG / reference no.", "Financial", False, lambda b: b.bg_reference or "—"),
     ExportColumn("bg_bank", "Issuing bank", "Financial", False, lambda b: b.bg_bank or "—"),

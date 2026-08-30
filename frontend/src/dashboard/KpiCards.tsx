@@ -74,6 +74,7 @@ export function KpiCards({ summary, loading, bgExposureCount }: KpiCardsProps) {
         <KpiCardSkeleton />
         <KpiCardSkeleton />
         <KpiCardSkeleton />
+        <KpiCardSkeleton />
       </div>
     );
   }
@@ -83,6 +84,7 @@ export function KpiCards({ summary, loading, bgExposureCount }: KpiCardsProps) {
     : "—";
   const winRate = summary.win_rate_pct === null ? "—" : `${summary.win_rate_pct}%`;
   const { BDT: securityBdt, USD: securityUsd } = summary.security_live.locked;
+  const { BDT: mgmtBdt, USD: mgmtUsd } = summary.management_cost;
 
   return (
     <div className="grid kpis">
@@ -113,6 +115,13 @@ export function KpiCards({ summary, loading, bgExposureCount }: KpiCardsProps) {
         sub={`${summary.security_live.count} live guarantees${securityUsd ? " · " + formatUSD(securityUsd) : ""}`}
         footer={`${bgExposureCount ?? "—"} expiring in 60d`}
         footerTone="warn"
+      />
+      <KpiCard
+        label="Management cost"
+        value={mgmtBdt ? formatBDT(mgmtBdt) : "—"}
+        sub={`Cost lines + convenience bills${mgmtUsd ? " · " + formatUSD(mgmtUsd) : ""}`}
+        footer="Full breakdown on each bid's detail page"
+        footerTone="flat"
       />
     </div>
   );

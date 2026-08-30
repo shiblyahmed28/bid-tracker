@@ -1,5 +1,7 @@
 from datetime import timedelta
+from decimal import Decimal
 
+from django.http import HttpResponse
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, generics, status, viewsets
@@ -14,8 +16,9 @@ from apps.settings_admin.capabilities import HasCapability
 from apps.sync.resolvers import resolve_client, resolve_person
 
 from .filters import BidFilter
-from .models import Bid, Person, Team
+from .models import Bid, BidCostLine, BidEngagement, Person, Team
 from .pagination import StandardPagination
+from .pdf import render_bid_detail_pdf
 from .serializers import BidDetailSerializer, BidListSerializer, BidWriteSerializer, PersonSerializer
 
 
@@ -31,6 +34,9 @@ class PersonListView(generics.ListAPIView):
 
 SELECT_RELATED = ("client", "cam", "sales_resource", "bid_manager", "team", "created_by", "updated_by")
 PREFETCH_RELATED = ("engaged_resources",)
+# Detail-only — the list/register never renders the per-row breakdown
+# (§Phase 22 item 3), so these prefetches would be wasted there.
+DETAIL_PREFETCH_RELATED = PREFETCH_RELATED + ("engagements__person", "cost_lines")
 
 # Register column key -> underlying field for a plain distinct-values lookup
 # (§13: "enum columns get a dropdown of distinct values"). `team` and
@@ -99,6 +105,80 @@ NAME_FIELD_TO_FK = {
 }
 
 
+def _sync_engagements(bid, rows):
+    """Full replace of this bid's BidEngagement rows, keyed by person
+    (§Phase 22 item 4) — the repeatable row editor always resubmits the
+    complete current set, so there's no per-row id to diff against.
+
+    Returns (people, membership_changed, detail_changed) so the caller can
+    still drive the pre-existing engaged_resources notification/audit path
+    (Bid.apply_change) exactly when membership changes, same as before this
+    phase — and fall back to a plain audit entry when only the per-person
+    detail fields (days/dates/convenience_bill) changed."""
+    existing = {e.person_id: e for e in bid.engagements.all()}
+    seen_person_ids = set()
+    detail_changed = False
+
+    for row in rows:
+        person = row["person"]
+        seen_person_ids.add(person.id)
+        defaults = {
+            "engaged_from": row.get("engaged_from"),
+            "engaged_to": row.get("engaged_to"),
+            "days": row.get("days") or 0,
+            "convenience_bill": row.get("convenience_bill") or Decimal("0"),
+            "note": row.get("note") or "",
+        }
+        prior = existing.get(person.id)
+        if prior is None or any(getattr(prior, key) != value for key, value in defaults.items()):
+            detail_changed = True
+        BidEngagement.objects.update_or_create(bid=bid, person=person, defaults=defaults)
+
+    stale_person_ids = set(existing) - seen_person_ids
+    if stale_person_ids:
+        detail_changed = True
+        bid.engagements.filter(person_id__in=stale_person_ids).delete()
+
+    people = [row["person"] for row in rows]
+    membership_changed = set(existing) != seen_person_ids
+    return people, membership_changed, detail_changed
+
+
+def _sync_cost_lines(bid, rows, actor):
+    """Full replace of this bid's BidCostLine rows (§Phase 22 item 4) — cost
+    lines have no natural identity to diff against across an edit (unlike
+    engagements, which are keyed by person), so every save recreates them.
+    Returns whether anything actually changed, for the audit entry."""
+    old_signature = sorted(
+        (line.description, line.date, line.reference, line.amount, line.currency, line.category)
+        for line in bid.cost_lines.all()
+    )
+    bid.cost_lines.all().delete()
+    for row in rows:
+        BidCostLine.objects.create(
+            bid=bid,
+            created_by=actor,
+            description=row["description"],
+            date=row.get("date"),
+            reference=row.get("reference") or "",
+            amount=row["amount"],
+            currency=row.get("currency") or Bid.Currency.BDT,
+            category=row.get("category") or "",
+        )
+    new_signature = sorted(
+        (
+            row["description"],
+            row.get("date"),
+            row.get("reference") or "",
+            row["amount"],
+            row.get("currency") or Bid.Currency.BDT,
+            row.get("category") or "",
+        )
+        for row in rows
+    )
+    return old_signature != new_signature
+
+
 class BidViewSet(viewsets.ModelViewSet):
     """The register (§13) and its detail page. List/retrieve are viewer+;
     create/update are editor+, routed through Bid.apply_change so every
@@ -125,6 +205,8 @@ class BidViewSet(viewsets.ModelViewSet):
             return [HasCapability("edit_bid")()]
         if self.action == "destroy":
             return [HasCapability("delete_bid")()]
+        if self.action == "export_pdf":
+            return [HasCapability("export_pdf")()]
         return [IsAuthenticatedViewer()]
 
     def get_serializer_class(self):
@@ -139,7 +221,10 @@ class BidViewSet(viewsets.ModelViewSet):
         if self.action in ("list", "retrieve"):
             qs = qs.with_serial()
         if self.action == "list":
+            qs = qs.with_management_cost()
             qs = self._apply_default_date_window(qs)
+        if self.action in ("retrieve", "export_pdf"):
+            qs = qs.prefetch_related(*("engagements__person", "cost_lines"))
         return qs
 
     def _apply_default_date_window(self, qs):
@@ -156,7 +241,12 @@ class BidViewSet(viewsets.ModelViewSet):
         return qs
 
     def _detail_response(self, bid, status_code):
-        instance = Bid.objects.select_related(*SELECT_RELATED).prefetch_related(*PREFETCH_RELATED).with_serial().get(pk=bid.pk)
+        instance = (
+            Bid.objects.select_related(*SELECT_RELATED)
+            .prefetch_related(*DETAIL_PREFETCH_RELATED)
+            .with_serial()
+            .get(pk=bid.pk)
+        )
         serializer = BidDetailSerializer(instance, context=self.get_serializer_context())
         return Response(serializer.data, status=status_code)
 
@@ -168,7 +258,8 @@ class BidViewSet(viewsets.ModelViewSet):
 
     def _create_bid(self, validated_data):
         data = dict(validated_data)
-        engaged_resources = data.pop("engaged_resources", [])
+        engagements = data.pop("engagements", [])
+        cost_lines = data.pop("cost_lines", [])
 
         cache = {}
         for name_field, (fk_field, resolver) in NAME_FIELD_TO_FK.items():
@@ -181,8 +272,11 @@ class BidViewSet(viewsets.ModelViewSet):
             updated_by=self.request.user,
             **data,
         )
-        if engaged_resources:
-            bid.engaged_resources.set(engaged_resources)
+        if engagements:
+            people, _membership_changed, _detail_changed = _sync_engagements(bid, engagements)
+            bid.engaged_resources.set(people)
+        if cost_lines:
+            _sync_cost_lines(bid, cost_lines, self.request.user)
 
         AuditEntry.objects.create(
             actor=self.request.user,
@@ -211,7 +305,8 @@ class BidViewSet(viewsets.ModelViewSet):
             if name_field in data:
                 data[fk_field] = resolver(cache, data.pop(name_field))
 
-        engaged_resources = data.pop("engaged_resources", None)
+        engagements = data.pop("engagements", None)
+        cost_lines = data.pop("cost_lines", None)
 
         from apps.settings_admin.services import notify_policy_transition
 
@@ -221,11 +316,35 @@ class BidViewSet(viewsets.ModelViewSet):
                 instance.apply_change(field_name, new_value, actor=self.request.user)
                 notify_policy_transition(instance, field_name, str(current_value or ""), str(new_value or ""))
 
-        if engaged_resources is not None:
-            current_ids = set(instance.engaged_resources.values_list("pk", flat=True))
-            new_ids = {person.pk for person in engaged_resources}
-            if current_ids != new_ids:
-                instance.apply_change("engaged_resources", engaged_resources, actor=self.request.user)
+        if engagements is not None:
+            people, membership_changed, detail_changed = _sync_engagements(instance, engagements)
+            if membership_changed:
+                # Membership is already correct on the DB from _sync_engagements
+                # above — .set() here is a no-op, called purely so this still
+                # goes through apply_change's existing audit-entry +
+                # notify_field_change side effects, exactly as before Phase 22.
+                instance.apply_change("engaged_resources", people, actor=self.request.user)
+            elif detail_changed:
+                AuditEntry.objects.create(
+                    actor=self.request.user,
+                    actor_label=self.request.user.email,
+                    action=AuditEntry.Action.BID_UPDATE,
+                    bid=instance,
+                    field="engagements",
+                    new_value=f"{len(people)} engaged resource(s) — details updated",
+                )
+
+        if cost_lines is not None:
+            changed = _sync_cost_lines(instance, cost_lines, self.request.user)
+            if changed:
+                AuditEntry.objects.create(
+                    actor=self.request.user,
+                    actor_label=self.request.user.email,
+                    action=AuditEntry.Action.BID_UPDATE,
+                    bid=instance,
+                    field="cost_lines",
+                    new_value=f"{len(cost_lines)} cost line(s)",
+                )
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -251,3 +370,15 @@ class BidViewSet(viewsets.ModelViewSet):
         if page is not None:
             return self.get_paginated_response(serializer.data)
         return Response(serializer.data)
+
+    @action(detail=True, methods=["get"], url_path="export/pdf")
+    def export_pdf(self, request, id=None):
+        """GET /bids/{id}/export/pdf/ — the per-bid PDF (§Phase 22 item 3):
+        key details plus the full cost breakdown, unlike the register export
+        (/bids/export/pdf/), which never carries more than the summary
+        figure per bid."""
+        bid = self.get_object()
+        pdf_bytes = render_bid_detail_pdf(bid)
+        response = HttpResponse(pdf_bytes, content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="{bid.reference}.pdf"'
+        return response

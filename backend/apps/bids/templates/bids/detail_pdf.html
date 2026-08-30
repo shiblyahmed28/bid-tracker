@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{ bid.reference }}</title>
+<style>
+  @page {
+    size: A4 landscape;
+    margin: 11mm;
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 8pt;
+      color: #82887F;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "DejaVu Sans", sans-serif;
+    font-size: 9pt;
+    color: #2E2E38;
+    margin: 0;
+  }
+  .header {
+    background: #2E6130;
+    color: #fff;
+    padding: 8pt 10pt;
+    border-radius: 4pt;
+    margin-bottom: 8pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .header table { width: 100%; border-collapse: collapse; }
+  .header td { border: 0; padding: 0; vertical-align: middle; }
+  .header img { width: 20pt; height: 20pt; display: block; }
+  .header h1 { font-size: 14pt; margin: 0 0 0 8pt; font-weight: 700; }
+  .header .ref { font-size: 10pt; font-weight: 400; opacity: 0.9; }
+  h2 {
+    font-size: 10.5pt;
+    color: #2E6130;
+    margin: 14pt 0 6pt;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  table.kv { width: 100%; border-collapse: collapse; margin-bottom: 4pt; }
+  table.kv td { padding: 2pt 6pt 2pt 0; font-size: 9pt; vertical-align: top; }
+  table.kv td.label { color: #82887F; width: 90pt; }
+  table.rows { width: 100%; border-collapse: collapse; }
+  table.rows th {
+    background: #EEF3EA;
+    text-align: left;
+    padding: 3pt 5pt;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #2E6130;
+    border-bottom: 1pt solid #2E6130;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  table.rows td {
+    padding: 3pt 5pt;
+    border-bottom: 0.4pt solid #CCC;
+    font-size: 8.5pt;
+  }
+  table.rows tfoot td {
+    font-weight: 700;
+    border-top: 1pt solid #2E6130;
+    border-bottom: none;
+  }
+  .num { text-align: right; }
+  .mgmt-cost {
+    margin-top: 10pt;
+    padding: 8pt 10pt;
+    background: #EEF3EA;
+    border-radius: 4pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .mgmt-cost b { font-size: 12pt; color: #2E6130; }
+  .mgmt-cost span { font-size: 8.5pt; color: #82887F; }
+  .footer { margin-top: 16pt; font-size: 7.5pt; color: #82887F; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <table>
+      <tr>
+        <td style="width: 20pt"><img src="{{ logo_data_uri }}" alt=""></td>
+        <td><h1>{{ bid.client.name }} <span class="ref">— {{ bid.reference }}</span></h1></td>
+      </tr>
+    </table>
+  </div>
+
+  <h2>Bid details</h2>
+  <table class="kv">
+    <tr>
+      <td class="label">Description</td><td>{{ bid.description|default:"—" }}</td>
+      <td class="label">Stage</td><td>{{ bid.stage|default:"—" }}</td>
+    </tr>
+    <tr>
+      <td class="label">Team</td><td>{{ bid.team.name|default:"—" }}</td>
+      <td class="label">Result</td><td>{{ bid.result|default:"—" }}</td>
+    </tr>
+    <tr>
+      <td class="label">Published</td><td>{{ bid.published_date|default:"—" }}</td>
+      <td class="label">Submission</td><td>{{ bid.submission_date|default:"—" }} ({{ bid.submission_status|default:"—" }})</td>
+    </tr>
+  </table>
+
+  <h2>Engagement</h2>
+  <table class="rows">
+    <thead>
+      <tr><th>Person</th><th>Engaged from</th><th>Engaged to</th><th class="num">Days</th><th class="num">Convenience bill</th><th>Note</th></tr>
+    </thead>
+    <tbody>
+      {% for e in engagements %}
+      <tr>
+        <td>{{ e.person.canonical_name }}</td>
+        <td>{{ e.engaged_from|default:"—" }}</td>
+        <td>{{ e.engaged_to|default:"—" }}</td>
+        <td class="num">{{ e.days }}</td>
+        <td class="num">{{ e.convenience_bill }}</td>
+        <td>{{ e.note|default:"—" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">No engaged resources recorded.</td></tr>
+      {% endfor %}
+    </tbody>
+    {% if engagements %}
+    <tfoot>
+      <tr>
+        <td colspan="3">Total</td>
+        <td class="num">{{ bid.total_engagement_days }}</td>
+        <td class="num">{{ bid.total_convenience_bill }}</td>
+        <td></td>
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+
+  <h2>Cost lines</h2>
+  <table class="rows">
+    <thead>
+      <tr><th>#</th><th>Description</th><th>Date</th><th>Reference</th><th class="num">Amount</th><th>Currency</th></tr>
+    </thead>
+    <tbody>
+      {% for line in cost_lines %}
+      <tr>
+        <td>{{ line.line_number }}</td>
+        <td>{{ line.description }}</td>
+        <td>{{ line.date|default:"—" }}</td>
+        <td>{{ line.reference|default:"—" }}</td>
+        <td class="num">{{ line.amount }}</td>
+        <td>{{ line.currency }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">No cost lines recorded.</td></tr>
+      {% endfor %}
+    </tbody>
+    {% if cost_lines %}
+    <tfoot>
+      <tr>
+        <td colspan="4">Total</td>
+        <td class="num" colspan="2">BDT {{ bid.total_cost_lines.BDT }}{% if bid.total_cost_lines.USD %} · USD {{ bid.total_cost_lines.USD }}{% endif %}</td>
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+
+  <div class="mgmt-cost">
+    <b>Management cost: BDT {{ bid.management_cost.BDT }}{% if bid.management_cost.USD %} · USD {{ bid.management_cost.USD }}{% endif %}</b><br>
+    <span>Cost lines (BDT {{ bid.total_cost_lines.BDT }}{% if bid.total_cost_lines.USD %} · USD {{ bid.total_cost_lines.USD }}{% endif %}) + convenience bill (BDT {{ bid.total_convenience_bill }})</span>
+  </div>
+
+  <p class="footer">Generated {{ generated_at }} · Spectrum Engineering Consortium (Pvt.) Ltd.</p>
+</body>
+</html>

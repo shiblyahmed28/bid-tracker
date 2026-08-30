@@ -501,11 +501,11 @@ its deadline passed. Surface this in the runway rather than showing an empty str
 
 ### Panels
 
-KPI row (submitted in range, win rate, awaiting result, security locked up) · submitted vs not
-submitted · result mix donut · clients by volume · bid managers · team breakdown · bid security
-expiring in 60 days · a bid table (SL, client, team, stage, bid manager, engaged resources,
-published, submission, submission status, result — newest first, Details per row, server-paginated
-at 25).
+KPI row (submitted in range, win rate, awaiting result, security locked up, **management cost** —
+Phase 22 item 3, summary figure only, cost lines + convenience bills) · submitted vs not submitted ·
+result mix donut · clients by volume · bid managers · team breakdown · bid security expiring in 60
+days · a bid table (SL, client, team, stage, bid manager, engaged resources, published, submission,
+submission status, result — newest first, Details per row, server-paginated at 25).
 
 ---
 
@@ -516,16 +516,26 @@ A read-only mirror of the `bids` worksheet. No editing here; editing lives on th
 - **Pagination** — 50 rows per page by default, with a numbered page index at the bottom
   (first, ellipsis, neighbours, ellipsis, last) plus a page-size selector (25/50/100/200).
   **Server-side.** Never ship 575 rows to the browser.
-- **Column picker** — all 28 columns can be shown or hidden, grouped as
+- **Column picker** — all 29 columns can be shown or hidden, grouped as
   Core / New fields / People / Dates / Financial / Status. Defaults to the 11 important ones:
   `SL, Client, Team, Stage, Bid manager, Engaged resources, Published, Submission, BG expiry,
-  Submission status, Result`. Selection persists per user.
+  Submission status, Result`. Selection persists per user. Financial gained a **Management cost**
+  column (Phase 22 item 3) — the summary figure only (cost lines + convenience bills, BDT/USD
+  split), same as the dashboard KPI; the full engagement/cost-line breakdown lives only on the
+  bid's own detail page and its PDF export, never here.
 - **Filters** — one per column. Enum columns get a dropdown of distinct values; text, list and
   money columns get a contains-match input. Filters combine with AND. Show active filters as
   removable chips.
 - **Date range** — the same control as the dashboard, on submission date.
 - **Search** — one box across client, description, tender id and bid manager.
-- **Details** — a button at the end of every row opening the full record.
+- **Details** — a button at the end of every row opening the full record. The detail page carries
+  two things the register never shows (Phase 22): a **milestone flowchart** (Published → Pre-bid →
+  Initiation → Engagement → BG issue → Submission, greying missing dates, flagging out-of-order
+  ones, marking today, and highlighting the submission node red once it's passed unSubmitted) and
+  the **full cost breakdown** — the engagement table and cost-lines table behind the management
+  cost figure, each with its own totals. Both are also on the bid's own PDF export
+  (`GET /bids/{id}/export/pdf/`, distinct from the register's `/bids/export/pdf/`, which only ever
+  carries the summary figure per row).
 - **Charts** — at the bottom, a breakdown of the currently filtered set by client, team, bid
   manager, submission status and result. These respect **every active filter and search term**,
   not just the date range — unlike the executive dashboard's breakdowns, which are date-range only.
@@ -675,8 +685,9 @@ POST   /bids/          editor+
 GET    /bids/{uuid}/ · PATCH editor+ · DELETE admin (soft)
 GET    /bids/{uuid}/history/
 POST   /bids/{uuid}/notes/
-GET    /bids/export/pdf/    same filters + columns=  → WeasyPrint, landscape A4
+GET    /bids/export/pdf/    same filters + columns=  → WeasyPrint, landscape A4, summary figure only
 GET    /bids/export/csv/
+GET    /bids/{uuid}/export/pdf/   per-bid PDF — full engagement + cost-line breakdown (Phase 22)
 
 GET    /dashboard/summary/      ?from=&to=    all KPIs
 GET    /dashboard/trend/        ?from=&to=    adaptive buckets (§12)

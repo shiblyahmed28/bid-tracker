@@ -230,6 +230,21 @@ export const COLUMNS: ColumnDef[] = [
     render: (b) => moneyCell(b.credit_facility_raw),
   },
   {
+    // §Phase 22 item 3 — the summary figure only; the full engagement/cost-
+    // line breakdown lives on the bid's own detail page and its PDF.
+    key: "management_cost",
+    label: "Management cost",
+    group: "Financial",
+    kind: "money",
+    defaultVisible: false,
+    render: (b) => {
+      if (b.management_cost_bdt === null) return "—";
+      const bdt = b.management_cost_bdt.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const usd = b.management_cost_usd;
+      return usd ? `৳${bdt} · $${usd.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : `৳${bdt}`;
+    },
+  },
+  {
     key: "bg_issue_date",
     label: "BG issue date",
     group: "Financial",

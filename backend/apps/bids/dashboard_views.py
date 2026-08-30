@@ -80,6 +80,21 @@ def compute_summary(date_from, date_to):
         "locked": money_by_currency(live_qs, "security_amount", "security_currency"),
     }
 
+    # §Phase 22 item 3 — the dashboard's own *summary* figure (full
+    # engagement/cost-line breakdown lives only on the detail page and its
+    # PDF). Two separate aggregates, not one combined query — joining both
+    # cost_lines and engagements in a single aggregate() would fan out and
+    # double-count whichever relation has more rows per bid.
+    cost_lines_totals = qs.aggregate(
+        bdt=Sum("cost_lines__amount", filter=Q(cost_lines__currency="BDT")),
+        usd=Sum("cost_lines__amount", filter=Q(cost_lines__currency="USD")),
+    )
+    convenience_bill_total = qs.aggregate(total=Sum("engagements__convenience_bill"))["total"] or Decimal("0")
+    management_cost = {
+        "BDT": (cost_lines_totals["bdt"] or Decimal("0")) + convenience_bill_total,
+        "USD": cost_lines_totals["usd"] or Decimal("0"),
+    }
+
     return {
         "from": date_from,
         "to": date_to,
@@ -94,6 +109,7 @@ def compute_summary(date_from, date_to):
         "result_breakdown": {(k or "(blank)"): v for k, v in result_counts.items()},
         "security_locked": money_by_currency(qs, "security_amount", "security_currency"),
         "security_live": security_live,
+        "management_cost": management_cost,
     }
 
 

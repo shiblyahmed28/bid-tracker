@@ -67,6 +67,14 @@ export async function downloadBidsCsv(params: ExportParams): Promise<void> {
   triggerBlobDownload(response.data as Blob, filename);
 }
 
+/** GET /bids/{id}/export/pdf/ — the per-bid PDF (§Phase 22 item 3): key
+ * details plus the full cost breakdown, unlike the register export above. */
+export async function downloadBidDetailPdf(bidId: string, reference: string): Promise<void> {
+  const response = await api.get(`/bids/${bidId}/export/pdf/`, { responseType: "blob" });
+  const filename = extractFilename(response.headers["content-disposition"], `${reference}.pdf`);
+  triggerBlobDownload(response.data as Blob, filename);
+}
+
 export function triggerBlobDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

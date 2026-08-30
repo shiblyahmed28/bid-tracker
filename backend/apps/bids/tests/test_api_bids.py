@@ -282,12 +282,16 @@ class TestBidUpdateRoleMatrix:
         api_client.patch(f"/api/v1/bids/{bid.id}/", {"remarks": "same"}, format="json")
         assert not AuditEntry.objects.filter(bid=bid, field="remarks").exists()
 
-    def test_engaged_resources_update_goes_through_apply_change(self, api_client, editor, make_bid):
+    def test_engagements_update_goes_through_apply_change(self, api_client, editor, make_bid):
+        """§Phase 22 item 4 — engagements replaces the old flat
+        engaged_resources PK list, but membership changes still drive the
+        same apply_change audit/notification path as before (see
+        apps/bids/tests/test_phase22_cost_breakdown.py for the full matrix)."""
         bid = make_bid(description="x", submission_date=datetime.date.today())
         person = Person.objects.create(canonical_name="Jane Analyst")
         login(api_client, editor, "EditorPass123!")
         response = api_client.patch(
-            f"/api/v1/bids/{bid.id}/", {"engaged_resources": [person.id]}, format="json"
+            f"/api/v1/bids/{bid.id}/", {"engagements": [{"person": person.id}]}, format="json"
         )
         assert response.status_code == 200
         bid.refresh_from_db()

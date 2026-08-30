@@ -2,11 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { deleteBid, fetchBid, updateBid, type BidDetail, type BidWritePayload } from "../api/bids";
+import { downloadBidDetailPdf } from "../api/exports";
 import { useAuth } from "../auth/AuthContext";
 import { BidForm } from "../bid-form/BidForm";
 import { ConflictBanner } from "../bid-detail/ConflictBanner";
+import { CostBreakdown } from "../bid-detail/CostBreakdown";
 import { DetailFields } from "../bid-detail/DetailFields";
 import { HistoryTimeline } from "../bid-detail/HistoryTimeline";
+import { MilestoneFlowchart } from "../bid-detail/MilestoneFlowchart";
 import { Modal } from "../components/Modal";
 import { useToast } from "../components/ToastContext";
 import { Skeleton } from "../dashboard/Skeleton";
@@ -86,12 +89,17 @@ export function BidDetailPage() {
         <ConflictBanner conflicts={bid.conflicts} onResolved={load} />
       )}
 
+      <MilestoneFlowchart bid={bid} />
+
       <div className="grid c2">
         <div className="card">
           <div className="chead">
             <h2>{bid.client.name}</h2>
             <span className="scope">{bid.reference}</span>
             <div className="hgap" />
+            <button className="btn btn-s btn-sm" onClick={() => downloadBidDetailPdf(bid.id, bid.reference)}>
+              Download PDF
+            </button>
             {isEditorOrAbove && (
               <button className="btn btn-s btn-sm" onClick={() => setEditing(true)}>
                 Edit
@@ -117,6 +125,8 @@ export function BidDetailPage() {
           </div>
         </div>
       </div>
+
+      <CostBreakdown bid={bid} />
 
       <Modal
         open={showDeleteConfirm}

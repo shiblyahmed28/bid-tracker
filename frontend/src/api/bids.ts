@@ -1,3 +1,4 @@
+import type { CurrencyTotals } from "./dashboard";
 import { api } from "./client";
 
 export interface ClientRef {
@@ -33,6 +34,10 @@ export interface BidListItem {
   engagement_from: string | null;
   engagement_to: string | null;
   engagement_days: number | null;
+  // §Phase 22 item 3 — the summary figure only; null unless the queryset
+  // annotated it (register list does, other call sites may not).
+  management_cost_bdt: number | null;
+  management_cost_usd: number | null;
   stage: string;
   initiation_mode: string;
   procurement_type: string;
@@ -114,6 +119,29 @@ export function fetchRegisterBreakdown(params: Record<string, string | number | 
   return api.get<RegisterBreakdownResponse>("/bids/breakdown/", { params }).then((r) => r.data);
 }
 
+// ---------- Cost breakdown (§Phase 22 item 2) — detail page and its PDF only ----------
+
+export interface BidEngagementItem {
+  id: number;
+  person: PersonRef;
+  engaged_from: string | null;
+  engaged_to: string | null;
+  days: number;
+  convenience_bill: number;
+  note: string;
+}
+
+export interface BidCostLineItem {
+  id: number;
+  line_number: number;
+  description: string;
+  date: string | null;
+  reference: string;
+  amount: number;
+  currency: "BDT" | "USD";
+  category: string;
+}
+
 export interface ConflictSummary {
   id: number;
   field: string;
@@ -136,11 +164,40 @@ export interface BidDetail extends BidListItem {
   updated_by_email: string | null;
   created_at: string;
   updated_at: string;
+  // §Phase 22 item 2 — the full breakdown, detail page only.
+  engagements: BidEngagementItem[];
+  cost_lines: BidCostLineItem[];
+  total_engagement_days: number;
+  total_convenience_bill: number;
+  total_cost_lines: CurrencyTotals;
+  management_cost: CurrencyTotals;
+}
+
+/** One repeatable engagement row from the create/edit form (§Phase 22 item 4). */
+export interface BidEngagementWriteRow {
+  person: number;
+  engaged_from?: string | null;
+  engaged_to?: string | null;
+  days?: number;
+  convenience_bill?: number | string;
+  note?: string;
+}
+
+/** One repeatable cost-line row from the create/edit form (§Phase 22 item 4). */
+export interface BidCostLineWriteRow {
+  description: string;
+  date?: string | null;
+  reference?: string;
+  amount: number | string;
+  currency?: "BDT" | "USD";
+  category?: string;
 }
 
 /** Matches BidWriteSerializer (§17) — client/cam/sales_resource/bid_manager
- * are free text resolved server-side like the sync pipeline; team and
- * engaged_resources are real ids since they're app-native curated lists (§7). */
+ * are free text resolved server-side like the sync pipeline; team is app-
+ * native (§7) and picked from the existing, curated list. `engagements`/
+ * `cost_lines` (§Phase 22 item 4) replace the old flat engaged_resources
+ * PK list — the view syncs the underlying BidEngagement/BidCostLine rows. */
 export interface BidWritePayload {
   client_name: string;
   description: string;
@@ -148,7 +205,8 @@ export interface BidWritePayload {
   sales_resource_name?: string;
   bid_manager_name?: string;
   team?: number | null;
-  engaged_resources?: number[];
+  engagements?: BidEngagementWriteRow[];
+  cost_lines?: BidCostLineWriteRow[];
   engagement_from?: string | null;
   engagement_to?: string | null;
   stage?: string;
