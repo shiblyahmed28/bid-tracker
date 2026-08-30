@@ -34,6 +34,8 @@ class AuditEntry(models.Model):
         PERSON_MERGE = "person_merge", "Engaged resources merged"
         WELCOME_EMAIL_SENT = "welcome_email_sent", "Welcome email sent"
         WELCOME_EMAIL_SETTINGS = "welcome_email_settings", "Welcome email setting changed"
+        SHEET_APPEND = "sheet_append", "Bid appended to sheet"
+        SHEET_APPEND_SETTINGS = "sheet_append_settings", "Sheet append setting changed"
 
     # actor is null with actor_label="System (sync)" for automated changes.
     actor = models.ForeignKey(

@@ -9,6 +9,7 @@ from .models import (
     ChoiceValue,
     DeadlineReminderRule,
     NotificationPolicy,
+    SheetAppendSettings,
     UserCapability,
     WelcomeEmailSettings,
 )
@@ -151,6 +152,15 @@ class WelcomeEmailSettingsSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = WelcomeEmailSettings
+        fields = ["enabled", "updated_by_email", "updated_at"]
+        read_only_fields = ["updated_by_email", "updated_at"]
+
+
+class SheetAppendSettingsSerializer(serializers.ModelSerializer):
+    updated_by_email = serializers.EmailField(source="updated_by.email", read_only=True, default=None)
+
+    class Meta:
+        model = SheetAppendSettings
         fields = ["enabled", "updated_by_email", "updated_at"]
         read_only_fields = ["updated_by_email", "updated_at"]
 

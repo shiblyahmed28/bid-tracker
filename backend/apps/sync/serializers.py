@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from apps.bids.models import Bid
+
 from .models import QuarantineRow, SyncConflict, SyncRun
 
 
@@ -63,3 +65,15 @@ class SyncConflictSerializer(serializers.ModelSerializer):
 
 class SyncConflictResolveSerializer(serializers.Serializer):
     choose = serializers.ChoiceField(choices=["sheet", "local"])
+
+
+class PendingSheetAppendSerializer(serializers.ModelSerializer):
+    """§Phase 23: surfaces bids still queued for their one-time append_row
+    call — awaiting a retry sweep, not the read-side sync above."""
+
+    client_name = serializers.CharField(source="client.name", read_only=True)
+
+    class Meta:
+        model = Bid
+        fields = ["id", "reference", "client_name", "sheet_append_error", "created_at"]
+        read_only_fields = fields

@@ -168,6 +168,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.settings_admin.tasks.send_deadline_reminders_task",
         "schedule": crontab(hour=8, minute=0),
     },
+    "retry-pending-sheet-appends": {
+        "task": "apps.sync.tasks.retry_pending_sheet_appends_task",
+        "schedule": crontab(minute="*/30"),
+    },
 }
 
 # Google Sheets

@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 
-import { fetchQuarantineRows, fetchSyncRuns, triggerSyncRun, type QuarantineRowItem, type SyncRunItem } from "../../api/sync";
+import {
+  fetchPendingSheetAppends,
+  fetchQuarantineRows,
+  fetchSyncRuns,
+  triggerSyncRun,
+  type PendingSheetAppendItem,
+  type QuarantineRowItem,
+  type SyncRunItem,
+} from "../../api/sync";
 import { Skeleton } from "../../dashboard/Skeleton";
 import { formatFullDateTime } from "../../lib/dateUtils";
 
@@ -21,6 +29,7 @@ function quarantineSummary(row: QuarantineRowItem): string {
 export function SyncHistoryPage() {
   const [runs, setRuns] = useState<SyncRunItem[] | null>(null);
   const [quarantine, setQuarantine] = useState<QuarantineRowItem[] | null>(null);
+  const [pendingAppends, setPendingAppends] = useState<PendingSheetAppendItem[] | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -28,6 +37,7 @@ export function SyncHistoryPage() {
   function load() {
     fetchSyncRuns(1, 10).then((page) => setRuns(page.results));
     fetchQuarantineRows(1, 20).then((page) => setQuarantine(page.results));
+    fetchPendingSheetAppends(1, 20).then((page) => setPendingAppends(page.results));
   }
 
   useEffect(() => {
@@ -161,6 +171,49 @@ export function SyncHistoryPage() {
                     <td>{q.reason}</td>
                     <td className="num trunc" style={{ maxWidth: 320 }} title={quarantineSummary(q)}>
                       {quarantineSummary(q)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="chead">
+          <h2>Pending sheet appends</h2>
+          <span className="scope">§Phase 23 — awaiting retry</span>
+        </div>
+        <div className="tscroll">
+          {pendingAppends === null ? (
+            <div className="cbody">
+              <Skeleton height={100} />
+            </div>
+          ) : pendingAppends.length === 0 ? (
+            <div className="cbody">
+              <p className="hint">Nothing pending.</p>
+            </div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Reference</th>
+                  <th>Client</th>
+                  <th>Created</th>
+                  <th>Last error</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingAppends.map((p) => (
+                  <tr key={p.id}>
+                    <td className="num">{p.reference}</td>
+                    <td>{p.client_name}</td>
+                    <td className="num" style={{ whiteSpace: "nowrap" }}>
+                      {formatFullDateTime(p.created_at)}
+                    </td>
+                    <td className="trunc" style={{ maxWidth: 320 }} title={p.sheet_append_error}>
+                      {p.sheet_append_error || "—"}
                     </td>
                   </tr>
                 ))}

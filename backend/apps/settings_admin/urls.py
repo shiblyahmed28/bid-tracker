@@ -17,6 +17,7 @@ from .views import (
     SettingsClientViewSet,
     SettingsPersonViewSet,
     SettingsTeamViewSet,
+    SheetAppendSettingsView,
     UserCapabilitiesView,
     WelcomeEmailSettingsView,
 )
@@ -67,4 +68,5 @@ urlpatterns = [
         SendWelcomeEmailView.as_view(),
         name="send-welcome-email",
     ),
+    path("settings/sheet-append/", SheetAppendSettingsView.as_view(), name="sheet-append-settings"),
 ] + router.urls

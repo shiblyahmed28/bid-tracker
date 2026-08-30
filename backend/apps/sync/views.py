@@ -13,12 +13,14 @@ from rest_framework.mixins import ListModelMixin
 from apps.accounts.permissions import IsEditorOrAbove
 from apps.accounts.utils import get_client_ip, get_user_agent
 from apps.audit.models import AuditEntry
+from apps.bids.models import Bid
 from apps.bids.pagination import StandardPagination
 from apps.settings_admin.capabilities import HasCapability
 
 from .models import QuarantineRow, SyncConflict, SyncRun
 from .resolvers import resolve_client, resolve_person
 from .serializers import (
+    PendingSheetAppendSerializer,
     QuarantineRowSerializer,
     SyncConflictResolveSerializer,
     SyncConflictSerializer,
@@ -60,6 +62,19 @@ class QuarantineRowListView(generics.ListAPIView):
     serializer_class = QuarantineRowSerializer
     pagination_class = StandardPagination
     queryset = QuarantineRow.objects.select_related("sync_run").all()
+
+
+class PendingSheetAppendListView(generics.ListAPIView):
+    """GET /sync/pending-appends/ — requires view_sync_history (§Phase 23:
+    "Surface pending items in Sync History"). Bids still awaiting their
+    one-time append_row call, most recent first."""
+
+    permission_classes = [HasCapability("view_sync_history")]
+    serializer_class = PendingSheetAppendSerializer
+    pagination_class = StandardPagination
+    queryset = Bid.objects.filter(
+        source=Bid.Source.APP, pending_sheet_append=True
+    ).select_related("client").order_by("-created_at")
 
 
 def _coerce_conflict_value(bid, field_name, raw, cache):

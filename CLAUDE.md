@@ -173,8 +173,10 @@ A `uid` column exists at the far right of the sheet. On each sync:
 2. If `uid` is blank, generate a UUID4 and **write it back to that one cell**.
 3. Match sheet rows to `Bid` records on `uid` only. Never on tender-id, never on row position.
 
-This is the only write the application ever makes to the sheet. Batch with
-`worksheet.batch_update` — never cell by cell, it will hit rate limits.
+This is the only *in-place* write the application ever makes to the sheet. Batch with
+`worksheet.batch_update` — never cell by cell, it will hit rate limits. The one other write
+the app can make — appending a whole new row for an app-created bid — never rewrites or
+deletes an existing row; see §7's "App-created records" and §Phase 23 below.
 
 ### Serial numbers
 
@@ -206,7 +208,16 @@ would wrongly produce.
 
 ### App-created records
 
-`source='app'`, **no `uid`**. Never written to the sheet, never deleted by the sync as "missing".
+`source='app'`. Not written to the sheet by default, never deleted by the sync as "missing" even
+when it is. **Sheet append-back (Phase 23)** — admin-gated, default off (Master Settings) —
+appends one row per app-created bid when it's created, containing a freshly minted `uid` and every
+sheet-mapped field; `team`, `engaged_resources`, engagement dates and cost lines have no sheet
+column and are never written. Once appended, the bid holds a `uid` like any sheet row and syncs
+normally — matched on that `uid`, never creating a duplicate. **Append only**: this never updates
+or deletes an existing row; the uid backfill above remains the only in-place write. A failed append
+doesn't block bid creation — the bid is flagged pending and retried later (its own Celery Beat
+sweep, independent of the read-side sync), and pending items surface in Sync History (admin-only).
+Every successful append writes an audit entry naming the sheet row number.
 
 ---
 
@@ -460,6 +471,7 @@ SentEmail         to_email, subject, kind, bid FK null, success bool,          #
 | Merge engaged resources · view engagement history | ❌ | ❌ | ✅ |
 | Toggle and send welcome emails (`manage_welcome_emails`) | ❌ | ❌ | ✅ |
 | View the email delivery log (`view_email_log`) | ❌ | ❌ | ✅ |
+| Toggle sheet append-back (`manage_sheet_append`, §Phase 23) | ❌ | ❌ | ✅ |
 
 Enforce with DRF permission classes on **every** viewset. Never rely on a hidden frontend button.
 Sync history and the audit log are admin-only. This is explicit and not negotiable.
@@ -698,6 +710,7 @@ GET    /dashboard/classic/      ?from=&to=
 
 POST   /sync/run/ · GET /sync/runs/ · GET /sync/quarantine/     admin
 GET    /sync/conflicts/ · POST /sync/conflicts/{id}/resolve/    {"choose":"sheet"|"local"}
+GET    /sync/pending-appends/    admin — bids awaiting their append_row retry (§Phase 23)
 
 GET    /notifications/ · POST /notifications/{id}/read/
 GET/PATCH /notifications/settings/
@@ -715,6 +728,8 @@ GET/PATCH /settings/welcome-email/   {"enabled": bool}            manage_welcome
 POST   /settings/engagements/{id}/welcome-email/                  manage_welcome_emails
 
 GET    /notifications/sent-log/     ?kind=&success=&recipient=    view_email_log (§Phase 21 item 4)
+
+GET/PATCH /settings/sheet-append/   {"enabled": bool}            manage_sheet_append (§Phase 23)
 ```
 
 **Default when no dates given: submission date from today−7 to today+7.**
@@ -805,7 +820,11 @@ resources and engagement period is demo-only and must not be ported.
 - ❌ Overwriting a local edit without asking.
 - ❌ Storing the display serial, or storing `engagement_days` — both are computed.
 - ❌ Letting the sync touch team, engaged resources or engagement dates.
-- ❌ Writing anything to the sheet other than the `uid` column.
+- ❌ Writing anything to the sheet other than the `uid` column and, when sheet append-back is on
+  (§Phase 23), a brand-new row for an app-created bid — never rewriting or deleting an existing row.
+- ❌ Writing `team`, `engaged_resources`, engagement dates or cost lines into an appended row — the
+  sheet has no columns for them.
+- ❌ Letting a sheet append failure block bid creation, or skip flagging the bid for retry.
 - ❌ Sending one email per changed bid per user.
 - ❌ Shipping all 575 rows to the browser. Paginate server-side.
 - ❌ Rendering 365 daily bars. Bucket adaptively.

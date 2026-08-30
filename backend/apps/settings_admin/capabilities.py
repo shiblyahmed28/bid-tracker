@@ -15,6 +15,7 @@ CAPABILITIES = [
     "manage_notification_policy",
     "manage_welcome_emails",
     "view_email_log",
+    "manage_sheet_append",
     "delete_bid",
     "export_pdf",
     "create_bid",

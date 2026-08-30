@@ -189,6 +189,22 @@ export function sendWelcomeEmail(engagementId: number) {
   return api.post<PersonEngagement>(`/settings/engagements/${engagementId}/welcome-email/`).then((r) => r.data);
 }
 
+// ---------- Sheet append (§Phase 23) ----------
+
+export interface SheetAppendSettingsData {
+  enabled: boolean;
+  updated_by_email: string | null;
+  updated_at: string;
+}
+
+export function fetchSheetAppendSettings() {
+  return api.get<SheetAppendSettingsData>("/settings/sheet-append/").then((r) => r.data);
+}
+
+export function updateSheetAppendSettings(enabled: boolean) {
+  return api.patch<SheetAppendSettingsData>("/settings/sheet-append/", { enabled }).then((r) => r.data);
+}
+
 export function fetchSettingsTeams() {
   return api.get<SettingsTeam[]>("/settings/teams/").then((r) => r.data);
 }

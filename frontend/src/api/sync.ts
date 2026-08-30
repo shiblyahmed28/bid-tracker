@@ -60,3 +60,17 @@ export function fetchQuarantineRows(page = 1, pageSize = 10) {
 export function triggerSyncRun() {
   return api.post<SyncRunItem>("/sync/run/").then((r) => r.data);
 }
+
+export interface PendingSheetAppendItem {
+  id: string;
+  reference: string;
+  client_name: string;
+  sheet_append_error: string;
+  created_at: string;
+}
+
+export function fetchPendingSheetAppends(page = 1, pageSize = 10) {
+  return api
+    .get<PaginatedResponse<PendingSheetAppendItem>>("/sync/pending-appends/", { params: { page, page_size: pageSize } })
+    .then((r) => r.data);
+}

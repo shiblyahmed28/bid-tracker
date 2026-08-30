@@ -15,6 +15,7 @@ from .models import (
     ChoiceValue,
     DeadlineReminderRule,
     NotificationPolicy,
+    SheetAppendSettings,
     UserCapability,
     WelcomeEmailSettings,
 )
@@ -31,6 +32,7 @@ from .serializers import (
     SettingsClientSerializer,
     SettingsPersonSerializer,
     SettingsTeamSerializer,
+    SheetAppendSettingsSerializer,
     UserCapabilityGrantSerializer,
     UserCapabilityOverrideSerializer,
     WelcomeEmailSettingsSerializer,
@@ -403,6 +405,35 @@ class WelcomeEmailSettingsView(APIView):
                 new_value=str(obj.enabled),
             )
         return Response(WelcomeEmailSettingsSerializer(obj).data)
+
+
+class SheetAppendSettingsView(APIView):
+    """GET/PATCH /settings/sheet-append/ — the global switch (§Phase 23),
+    default OFF. Gated by manage_sheet_append — a distinct capability from
+    trigger_sync, since flipping this on starts writing new rows to the
+    live sheet on every future bid creation, not just reading it."""
+
+    permission_classes = [SettingsPermission("manage_sheet_append")]
+
+    def get(self, request):
+        return Response(SheetAppendSettingsSerializer(SheetAppendSettings.load()).data)
+
+    def patch(self, request):
+        obj = SheetAppendSettings.load()
+        was_enabled = obj.enabled
+        serializer = SheetAppendSettingsSerializer(obj, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        obj = serializer.save(updated_by=request.user)
+
+        if obj.enabled != was_enabled:
+            _audit(
+                request,
+                AuditEntry.Action.SHEET_APPEND_SETTINGS,
+                field="enabled",
+                old_value=str(was_enabled),
+                new_value=str(obj.enabled),
+            )
+        return Response(SheetAppendSettingsSerializer(obj).data)
 
 
 class SendWelcomeEmailView(APIView):

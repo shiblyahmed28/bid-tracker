@@ -153,6 +153,13 @@ class Bid(models.Model):
     uid = models.UUIDField(null=True, blank=True, unique=True)
     source = models.CharField(max_length=10, choices=Source.choices, default=Source.APP)
     sheet_row = models.IntegerField(null=True, blank=True)
+    # §Phase 23 — append-only sheet write-back, admin-gated and default off.
+    # Set true the moment an app-native bid is queued for its one append_row
+    # call; cleared on success. A failure leaves this true and records the
+    # error so the bid surfaces in Sync History and a later retry sweep
+    # (apps.sync.append.retry_pending_sheet_appends) picks it up again.
+    pending_sheet_append = models.BooleanField(default=False)
+    sheet_append_error = models.TextField(blank=True)
 
     client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name="bids")
     description = models.TextField(blank=True)

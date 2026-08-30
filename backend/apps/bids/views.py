@@ -288,6 +288,10 @@ class BidViewSet(viewsets.ModelViewSet):
         from apps.notifications.services import notify_new_bid
 
         notify_new_bid(bid)
+
+        from apps.sync.append import queue_bid_for_sheet_append
+
+        queue_bid_for_sheet_append(bid)
         return bid
 
     def update(self, request, *args, **kwargs):
