@@ -188,9 +188,19 @@ This is the only write the application ever makes to the sheet. Batch with
 - Worked example: the sheet's newest row is serial 501. A user creates a bid in the app → 502.
   The sheet's next new row syncs later → 503, even though the sheet itself calls it 502.
 - On delete, serials **close up with no gaps**.
-- Implement as `ROW_NUMBER() OVER (ORDER BY arrival_seq)` over non-deleted rows.
+- Implement as `ROW_NUMBER() OVER (ORDER BY arrival_seq)` over non-deleted rows, computed ascending
+  across the whole table — never over a paginated slice, or every page would start back at 1.
 
 **Never put a serial in an email, notification or permalink.** Use `reference`.
+
+### Display ordering
+
+Every bid list — All bids, Classic view, the dashboard's bid table, and PDF/CSV export — displays
+**newest first**: `ORDER BY arrival_seq DESC`. The `serial` value itself is still computed
+ascending (above), so the newest bid holds the highest serial number and sits at the top of page 1.
+With 577 bids and the default page size of 50, page 1 shows serials 577 down to 528; page 3 shows
+477 down to 428 — never 1 up to 50, which is what a window function computed after `LIMIT`/`OFFSET`
+would wrongly produce.
 
 ### App-created records
 
@@ -373,7 +383,9 @@ Sync history and the audit log are admin-only. This is explicit and not negotiab
 One control drives everything on the dashboard. It filters on **submission date**.
 
 - **Default: today − 7 days to today + 7 days.**
-- Presets: ±7 days · 30 days · 90 days · This year · 12 months · All, plus free date entry.
+- Presets: ±7 days (14 days) · ±14 days (28 days) · ±30 days (60 days) · This year · Past 12 months ·
+  All, plus free date entry. The first three are symmetric around today — each label spells out the
+  total span so "±7 days" reads unambiguously as 14 days end to end, not 7.
 - **Every panel responds** — KPI cards, trend chart, result mix, clients by volume, bid managers,
   team breakdown, security exposure, the bid table. Nothing is pinned to "all time".
 - Each panel still carries a small scope label so the user can see what it covers.
@@ -401,7 +413,9 @@ its deadline passed. Surface this in the runway rather than showing an empty str
 
 KPI row (submitted in range, win rate, awaiting result, security locked up) · submitted vs not
 submitted · result mix donut · clients by volume · bid managers · team breakdown · bid security
-expiring in 60 days.
+expiring in 60 days · a bid table (SL, client, team, stage, bid manager, engaged resources,
+published, submission, submission status, result — newest first, Details per row, server-paginated
+at 25).
 
 ---
 
@@ -422,6 +436,10 @@ A read-only mirror of the `bids` worksheet. No editing here; editing lives on th
 - **Date range** — the same control as the dashboard, on submission date.
 - **Search** — one box across client, description, tender id and bid manager.
 - **Details** — a button at the end of every row opening the full record.
+- **Charts** — at the bottom, a breakdown of the currently filtered set by client, team, bid
+  manager, submission status and result. These respect **every active filter and search term**,
+  not just the date range — unlike the executive dashboard's breakdowns, which are date-range only.
+  Each chart is labelled with a summary of the active filters.
 
 ### PDF export
 

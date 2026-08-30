@@ -426,6 +426,151 @@ Notifications. Two sections. First, the event policy table — one row per event
 
 Every change shows what it affects before saving. Responsive to 380px: tabs become a select, the capability matrix scrolls horizontally with a sticky first column.
 
+
+Phase 18 — UI corrections
+
+/clear, then:
+
+Read CLAUDE.md, then implement Phase 18 — UI corrections found in production testing. No model changes in this phase.
+
+1. Serial ordering. Every bid list must display newest first — ORDER BY arrival_seq DESC. The serial value itself stays ROW_NUMBER() OVER (ORDER BY arrival_seq) computed ascending across all non-deleted rows, so the newest bid holds the highest number and sits at the top. With 577 bids, page 1 must show 577 down to 528.
+
+Critical check: verify the window function is computed over the full table, not over the paginated slice. If it's computed after LIMIT/OFFSET, every page will start at 1 and the numbers will be meaningless. Write a test that fetches page 3 and asserts the serials are 477–428, not 1–50.
+
+Apply to All bids, Classic view, dashboard table and PDF export. Update CLAUDE.md §6 to state display ordering explicitly.
+
+2. Master Settings cannot create entries. Client, People and Team are listed but there's no way to add one. Add inline create, edit and deactivate for all three, matching the existing choice-value behaviour. Audit every mutation.
+
+3. Date presets become: ±7 days, ±14 days, ±30 days, This year, Past 12 months, All. Label the symmetric ones so the total span is clear — "±7 days (14 days)". Default stays ±7 days. Update CLAUDE.md §12.
+
+4. Dashboard bid table at the bottom: SL, Client, Team, Stage, Bid manager, Engaged resources, Published, Submission, Submission status, Result. Filtered by the shared date range on submission date, newest first, Details button per row, server-paginated at 25.
+
+5. All bids charts at the bottom, breaking down the filtered set by Client, Team, Bid manager, Submission status and Result. These must respect every active filter, not just dates. Label each with the active filter summary.
+
+6. Nav highlight bug. On /bids/new, both "All bids" and "Create bid" show active — prefix matching. Fix so exactly one nav item is ever active, and check every other nav pair.
+
+Verify by hand: page 1 starts at 577; page 3 starts at 477; creating a bid puts it top with the next serial; one nav item highlights per route.
+
+Phase 19 — Model changes
+
+Read CLAUDE.md, then implement Phase 19 — engagement and cost tracking. All model changes land in one migration.
+
+1. BidEngagement through-model replacing the plain M2M between Bid and Person:
+
+bid FK, person FK, unique together
+engaged_from, engaged_to — optional dates
+days — integer, required. Actual working days inside that window, not the calendar span. Someone engaged 1–15 August may have worked 7 days.
+convenience_bill — Decimal, default 0, BDT
+note — optional
+
+Migrate existing M2M rows across with days=0 and null dates. Do not lose data.
+
+2. BidCostLine — bid preparation costs:
+
+bid FK, description, date, reference, amount Decimal, currency default BDT, category (optional, admin-managed choice list), created_by, created_at
+Line numbers are display positions, computed — never stored
+
+3. Computed properties on Bid, none stored:
+
+total_engagement_days = sum of BidEngagement.days
+total_convenience_bill = sum of BidEngagement.convenience_bill
+total_cost_lines = sum of BidCostLine.amount
+management_cost = total_cost_lines + total_convenience_bill
+
+Compute in the database with annotate, never by looping in Python. Report BDT and USD separately if any line is USD; never sum across currencies.
+
+4. Person model:
+
+email — optional, unique when set
+person_type — internal | external, default internal
+organization — for external people
+phone, is_active
+user — optional FK to User, linking a Person to a login account
+welcome_email_sent_at — nullable
+
+5. Add Bid.initiation_date if it doesn't exist. Sheet column index 13 is initiation and may not have been mapped. Check first; if missing, add it and wire it into the sheet importer per CLAUDE.md §5.
+
+6. Sync must never touch BidEngagement, BidCostLine, or the new Person fields. Add them to the app-native list in §9 step 4d.
+
+Update CLAUDE.md §7 and §10. Write tests: totals compute correctly, a deleted cost line changes management cost, days is independent of the date span, sync leaves all new fields untouched.
+
+Run migrations and the full suite.
+
+Phase 20 — Master Settings: Engaged Resources
+
+Read CLAUDE.md, then implement Phase 20.
+
+1. Rename "People" to "Engaged Resources" throughout the UI. Keep the model name Person — this is a label change only.
+
+2. Enhanced management screen with: name, email, internal/external, organisation, phone, active, linked user account, and a usage count of how many bids they appear on. Filter by type and by active. Inline create, edit, deactivate.
+
+3. Deduplication tool. Person records were parsed from the sheet and contain whitespace and casing variants of the same human — "Aminul Quader Khalili " and "Aminul Quader Khalili". Add a merge view listing likely duplicates by normalised name, letting an admin merge them. Merging reassigns every BidEngagement to the surviving record and writes an audit entry. Run this before enabling any email sending.
+
+4. Engagement history per person — selecting a resource shows every bid they were engaged on, with days, dates and convenience bill, plus totals.
+
+5. Welcome email, admin-triggered only:
+
+Fires once per person per bid when they're added to engaged_resources, and only if they have an email
+Content: greeting by name, bid client and description, reference, submission date, their engagement dates and days, and who to contact
+Records welcome_email_sent_at; never sends twice for the same bid
+A manual resend button per person per bid
+A global admin switch, default OFF. Do not send anything until an admin turns it on.
+External recipients get a reduced version — no financial figures, no security amounts, no BG details. External people must never receive commercially sensitive content by email.
+
+Audit every send with recipient, bid and triggering admin.
+
+Phase 21 — Email
+
+Read CLAUDE.md, then implement Phase 21.
+
+1. External email domains. Currently only @spectrum-bd.com is accepted. Change to: admins may create accounts on any domain, but external-domain accounts are forced to the viewer role and cannot be promoted. Non-admins remain restricted to @spectrum-bd.com for their own profile. Badge external accounts visibly in the Users list. Audit every external-account creation with the admin's name. Update CLAUDE.md §14 and the §20 landmine.
+
+2. Notification email content. New-bid emails currently carry only client, description, reference and submission date. Add CAM, Bid manager, Team, Published date and Delivery type. Apply the same expansion to change-notification and deadline emails. Keep the plain-text fallback in step with the HTML.
+
+3. DEFAULT_FROM_EMAIL must match the authenticated SMTP account or Gmail rewrites or rejects it. Add a startup check that warns loudly when the from-address domain differs from EMAIL_HOST_USER's, and document the "Send mail as" alias route in DEPLOY.md.
+
+4. Email delivery log — a SentEmail record for every message: recipient, subject, kind, related bid, sent-at, success or failure with the error. Surface it admin-only so "did that person get notified?" is answerable. Never log message bodies containing financial detail.
+
+Phase 22 — Bid detail
+
+Read CLAUDE.md, then implement Phase 22 — bid detail enhancements.
+
+1. Milestone flowchart at the top of the bid detail page, in this fixed order: Published → Pre-bid → Initiation → Engagement (bid-level) → BG issue → Submission.
+
+Real data is messy, so handle these explicitly:
+
+Missing dates — render the node greyed with "not recorded", never hide it
+Out-of-order dates — real bids have initiation before published. Render in the fixed order above but flag any node whose date precedes its predecessor with a warning marker and a tooltip explaining the inconsistency. Do not silently reorder.
+Mark today's position on the flow, and highlight the submission node red when it has passed with status not Submitted
+
+Responsive: horizontal on desktop, vertical stack below 768px.
+
+2. Cost breakdown, detail page only:
+
+Engagement table — person, dates, days, convenience bill, note — with column totals
+Cost lines table — description, date, reference, amount — with a total
+Management cost shown as the sum of both, with the two components visible so the figure is explainable
+
+3. Only the summary figure appears on the dashboard and All bids. Full breakdown lives on the detail page and in a per-bid PDF export.
+
+4. Create and edit forms gain a repeatable engagement row (person, from, to, days, convenience bill) and a repeatable cost line (description, date, reference, amount). Both add and remove rows without a page reload. Live totals as the user types.
+
+Phase 23 — Sheet append-back
+
+Read CLAUDE.md, then implement Phase 23 — append-only sheet write-back. Admin-gated, default OFF.
+
+When a bid is created in the app and the feature is enabled, append one row to the bids worksheet containing that bid's uid and every sheet-mapped field. After appending, the bid is indistinguishable from a sheet-sourced row and syncs normally.
+
+Rules:
+
+Append only. Never update or delete an existing row. The only in-place write remains the uid backfill.
+App-native fields — team, engagements, cost lines — are not written; the sheet has no columns for them and must not gain any.
+One append_row call per bid. Never rewrite the sheet.
+On failure, queue for retry and flag the bid as "pending sheet append" without blocking creation. Surface pending items in Sync History.
+Admin toggle in Master Settings, default OFF, with a clear warning that it modifies the live sheet.
+Every append writes an audit entry with the sheet row number.
+
+Test: appending then syncing does not create a duplicate; a failed append doesn't block creation; disabled means no write occurs.
 # Part 2 — Working with Claude Code
 
 **Start every session with:** `Read CLAUDE.md, then continue with Phase N.`

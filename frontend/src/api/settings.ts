@@ -83,6 +83,9 @@ export interface SettingsTeam {
 export function fetchSettingsClients() {
   return api.get<SettingsClient[]>("/settings/clients/").then((r) => r.data);
 }
+export function createSettingsClient(payload: { name: string }) {
+  return api.post<SettingsClient>("/settings/clients/", payload).then((r) => r.data);
+}
 export function updateSettingsClient(id: number, payload: Partial<SettingsClient>) {
   return api.patch<SettingsClient>(`/settings/clients/${id}/`, payload).then((r) => r.data);
 }
@@ -90,12 +93,18 @@ export function updateSettingsClient(id: number, payload: Partial<SettingsClient
 export function fetchSettingsPeople() {
   return api.get<SettingsPerson[]>("/settings/people/").then((r) => r.data);
 }
+export function createSettingsPerson(payload: { canonical_name: string }) {
+  return api.post<SettingsPerson>("/settings/people/", payload).then((r) => r.data);
+}
 export function updateSettingsPerson(id: number, payload: Partial<SettingsPerson>) {
   return api.patch<SettingsPerson>(`/settings/people/${id}/`, payload).then((r) => r.data);
 }
 
 export function fetchSettingsTeams() {
   return api.get<SettingsTeam[]>("/settings/teams/").then((r) => r.data);
+}
+export function createSettingsTeam(payload: { name: string }) {
+  return api.post<SettingsTeam>("/settings/teams/", payload).then((r) => r.data);
 }
 export function updateSettingsTeam(id: number, payload: Partial<SettingsTeam>) {
   return api.patch<SettingsTeam>(`/settings/teams/${id}/`, payload).then((r) => r.data);

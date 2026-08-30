@@ -95,6 +95,25 @@ export function fetchDistinctValues(field: string) {
     .then((r) => r.data.options);
 }
 
+export type RegisterBreakdownBy = "client" | "team" | "bid_manager" | "submission_status" | "result";
+
+export interface RegisterBreakdownRow {
+  label: string;
+  count: number;
+}
+
+export interface RegisterBreakdownResponse {
+  by: RegisterBreakdownBy;
+  breakdown: RegisterBreakdownRow[];
+}
+
+/** GET /bids/breakdown/ — unlike /dashboard/breakdown/ (date-range only),
+ * this accepts the full register filter set (§13/§18 Phase 18 item 5), so
+ * the All-bids charts respect every active filter chip, not just dates. */
+export function fetchRegisterBreakdown(params: Record<string, string | number | undefined> & { by: RegisterBreakdownBy }) {
+  return api.get<RegisterBreakdownResponse>("/bids/breakdown/", { params }).then((r) => r.data);
+}
+
 export interface ConflictSummary {
   id: number;
   field: string;

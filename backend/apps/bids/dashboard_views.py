@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 from apps.accounts.permissions import IsAuthenticatedViewer
 
 from .date_range import get_date_range
+from .export_filters import filtered_export_queryset
 from .models import Bid
 
 BREAKDOWN_FIELDS = {
@@ -22,6 +23,11 @@ BREAKDOWN_FIELDS = {
     "team": "team__name",
     "result": "result",
 }
+
+# Same fields as the dashboard's own breakdown, plus submission_status — the
+# register's charts (§18 Phase 18 item 5) break down by one more dimension
+# than the executive dashboard does.
+REGISTER_BREAKDOWN_FIELDS = {**BREAKDOWN_FIELDS, "submission_status": "submission_status"}
 
 # §12: pick the trend/runway bucket from the span.
 DAILY_MAX_DAYS = 31
@@ -285,6 +291,43 @@ class DashboardBgExposureView(APIView):
                 "count": len(items),
                 "security_locked": security_locked,
                 "items": items,
+            }
+        )
+
+
+class BidRegisterBreakdownView(APIView):
+    """GET /bids/breakdown/?by=client|team|bid_manager|submission_status|result
+    plus the full BidFilter param set and `search` (§18 Phase 18 item 5).
+
+    Unlike DashboardBreakdownView above — which only ever scopes by the
+    shared date range — this one runs through filtered_export_queryset, the
+    same BidFilter + search stack the register and its PDF/CSV export use.
+    That's what lets the All-bids charts respect every active filter chip,
+    not only the date range.
+    """
+
+    permission_classes = [IsAuthenticatedViewer]
+
+    def get(self, request):
+        by = request.query_params.get("by", "client")
+        field = REGISTER_BREAKDOWN_FIELDS.get(by)
+        if field is None:
+            return Response(
+                {"detail": f"Invalid 'by'. Choose one of {sorted(REGISTER_BREAKDOWN_FIELDS)}."}, status=400
+            )
+
+        queryset = filtered_export_queryset(Bid.objects.all(), request.query_params)
+        rows = (
+            queryset.annotate(label=F(field))
+            .values("label")
+            .annotate(count=Count("id"))
+            .order_by("-count")
+        )
+
+        return Response(
+            {
+                "by": by,
+                "breakdown": [{"label": row["label"] or "(blank)", "count": row["count"]} for row in rows],
             }
         )
 

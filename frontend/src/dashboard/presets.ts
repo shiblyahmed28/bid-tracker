@@ -5,12 +5,13 @@ export interface RangePreset {
   range: (today: string) => { from: string; to: string };
 }
 
-/** §12: only the default (±7 days) is symmetric around today — 30/90 days
- * and 12 months are trailing windows ending today, matching the mockup. */
+/** §12 Phase 18 item 3: the first three presets are symmetric around today —
+ * each label spells out the total span (e.g. "±7 days (14 days)") so it's
+ * unambiguous that ±7 means 14 days end to end, not 7. */
 export const PRESETS: RangePreset[] = [
-  { label: "±7 days", range: (today) => ({ from: shiftISO(today, -7), to: shiftISO(today, 7) }) },
-  { label: "30 days", range: (today) => ({ from: shiftISO(today, -30), to: today }) },
-  { label: "90 days", range: (today) => ({ from: shiftISO(today, -90), to: today }) },
+  { label: "±7 days (14 days)", range: (today) => ({ from: shiftISO(today, -7), to: shiftISO(today, 7) }) },
+  { label: "±14 days (28 days)", range: (today) => ({ from: shiftISO(today, -14), to: shiftISO(today, 14) }) },
+  { label: "±30 days (60 days)", range: (today) => ({ from: shiftISO(today, -30), to: shiftISO(today, 30) }) },
   {
     label: "This year",
     range: () => {
@@ -18,7 +19,7 @@ export const PRESETS: RangePreset[] = [
       return { from: `${year}-01-01`, to: `${year}-12-31` };
     },
   },
-  { label: "12 months", range: (today) => ({ from: shiftISO(today, -365), to: today }) },
+  { label: "Past 12 months", range: (today) => ({ from: shiftISO(today, -365), to: today }) },
   // "All" has no real unbounded query support — 2000-2100 is the same valid
   // year window the backend itself enforces on every stored date (§8), so
   // it's guaranteed to include everything without a special "no bound" case.

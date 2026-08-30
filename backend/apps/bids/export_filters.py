@@ -48,7 +48,9 @@ def apply_search(queryset, search_term):
 def filtered_export_queryset(queryset, query_params):
     queryset = BidFilter(query_params, queryset=queryset).qs
     queryset = apply_search(queryset, query_params.get("search"))
-    return queryset.order_by("arrival_seq")
+    # Newest first (§18 Phase 18 item 1) — matches the register/API default,
+    # so PDF and CSV exports read top-to-bottom the same as the on-screen table.
+    return queryset.order_by("-arrival_seq")
 
 
 def _format_date_param(value):

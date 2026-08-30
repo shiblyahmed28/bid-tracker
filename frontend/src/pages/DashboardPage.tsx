@@ -1,6 +1,7 @@
 import { fetchBgExposure, fetchSummary, fetchTrend } from "../api/dashboard";
 import { BidManagers } from "../dashboard/BidManagers";
 import { ClientsByVolume } from "../dashboard/ClientsByVolume";
+import { DashboardBidTable } from "../dashboard/DashboardBidTable";
 import { DateRangeProvider } from "../dashboard/DateRangeContext";
 import { KpiCards } from "../dashboard/KpiCards";
 import { RangeBar } from "../dashboard/RangeBar";
@@ -46,6 +47,8 @@ function DashboardContent() {
         <TeamsBreakdown />
         <SecurityExpiring data={bgExposure} loading={bgExposureLoading} />
       </div>
+
+      <DashboardBidTable />
     </>
   );
 }

@@ -100,6 +100,22 @@ class TestBidListBehaviour:
         serials = sorted(row["serial"] for row in response.data["results"])
         assert serials == [1, 2]
 
+    def test_newest_first_and_serial_computed_over_whole_table_not_per_page(self, api_client, viewer, make_bid):
+        """§18 Phase 18 item 1: every list is newest first, and `serial` must
+        rank ascending across the *whole* non-deleted table — not the
+        paginated slice. If the window function ran after LIMIT/OFFSET,
+        every page would wrongly start back at 1."""
+        today = datetime.date.today()
+        bids = [make_bid(description=f"bid {i}", submission_date=today) for i in range(577)]
+        login(api_client, viewer, "ViewerPass123!")
+
+        page1 = api_client.get("/api/v1/bids/", {"page": 1, "page_size": 50})
+        assert [row["serial"] for row in page1.data["results"]] == list(range(577, 527, -1))
+        assert page1.data["results"][0]["id"] == str(bids[-1].id)
+
+        page3 = api_client.get("/api/v1/bids/", {"page": 3, "page_size": 50})
+        assert [row["serial"] for row in page3.data["results"]] == list(range(477, 427, -1))
+
     def test_team_filter(self, api_client, viewer, make_bid, team):
         today = datetime.date.today()
         make_bid(description="a", submission_date=today, team=team)

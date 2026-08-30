@@ -172,7 +172,10 @@ class Bid(models.Model):
     all_objects = BidQuerySet.as_manager()
 
     class Meta:
-        ordering = ["arrival_seq"]
+        # Newest first everywhere (§18 Phase 18 item 1) — `serial` itself
+        # still ranks ascending by arrival_seq (with_serial() above), so the
+        # newest bid holds the highest serial while sitting at the top.
+        ordering = ["-arrival_seq"]
 
     def __str__(self):
         return self.reference

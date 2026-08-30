@@ -3,6 +3,7 @@ import { useState } from "react";
 import { downloadBidsCsv } from "../api/exports";
 import { DateRangeProvider, useDateRange } from "../dashboard/DateRangeContext";
 import { RangeBar } from "../dashboard/RangeBar";
+import { formatDMY } from "../lib/dateUtils";
 import { useDebouncedValue } from "../lib/useDebouncedValue";
 import { ActiveFilterChips, labelFor } from "../register/ActiveFilterChips";
 import { BidTable } from "../register/BidTable";
@@ -11,6 +12,7 @@ import { ColumnPicker } from "../register/ColumnPicker";
 import { FilterPanel } from "../register/FilterPanel";
 import { Pager } from "../register/Pager";
 import { PdfExportDialog } from "../register/PdfExportDialog";
+import { RegisterBreakdownCharts } from "../register/RegisterBreakdownCharts";
 import { useBidsQuery } from "../register/useBidsQuery";
 import { useColumnPreferences } from "../register/useColumnPreferences";
 import { useEnumOptions } from "../register/useEnumOptions";
@@ -71,6 +73,12 @@ function RegisterContent() {
   const filterChipLabels = Object.entries(filters)
     .filter(([, value]) => value)
     .map(([param, value]) => labelFor(param, value, enumOptions));
+
+  const filterSummary = [
+    `Dates: ${formatDMY(from)} → ${formatDMY(to)}`,
+    ...(debouncedSearch ? [`Search: "${debouncedSearch}"`] : []),
+    ...filterChipLabels,
+  ].join(" · ");
 
   return (
     <>
@@ -153,6 +161,8 @@ function RegisterContent() {
           />
         )}
       </div>
+
+      <RegisterBreakdownCharts params={exportParams} filterSummary={filterSummary} />
 
       <PdfExportDialog
         open={showPdfDialog}

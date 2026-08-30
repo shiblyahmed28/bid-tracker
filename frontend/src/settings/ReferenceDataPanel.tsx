@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 
 import {
+  createSettingsClient,
+  createSettingsPerson,
+  createSettingsTeam,
   fetchSettingsClients,
   fetchSettingsPeople,
   fetchSettingsTeams,
@@ -18,9 +21,24 @@ type Kind = "clients" | "people" | "teams";
 type Row = SettingsClient | SettingsPerson | SettingsTeam;
 
 const LABELS: Record<Kind, string> = { clients: "Clients", people: "People", teams: "Teams" };
+const SINGULAR: Record<Kind, string> = { clients: "client", people: "person", teams: "team" };
+const PLACEHOLDER: Record<Kind, string> = {
+  clients: "New client name",
+  people: "New person name",
+  teams: "New team name",
+};
 
 function nameOf(kind: Kind, row: Row): string {
   return kind === "people" ? (row as SettingsPerson).canonical_name : (row as SettingsClient | SettingsTeam).name;
+}
+
+// The create endpoints validate on `name` (clients/teams) or
+// `canonical_name` (people) as a field-level error, which DRF returns as
+// {field: [message]} rather than {detail: message} — check both shapes so
+// the toast still surfaces the specific reason (e.g. "already exists")
+// instead of the generic fallback.
+function firstErrorMessage(data: any): string | undefined {
+  return data?.detail ?? data?.name?.[0] ?? data?.canonical_name?.[0];
 }
 
 interface ReferenceDataPanelProps {
@@ -33,6 +51,8 @@ export function ReferenceDataPanel({ kind, onCountChange }: ReferenceDataPanelPr
   const [rows, setRows] = useState<Row[] | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [newName, setNewName] = useState("");
+  const [adding, setAdding] = useState(false);
 
   function load() {
     setRows(null);
@@ -63,7 +83,26 @@ export function ReferenceDataPanel({ kind, onCountChange }: ReferenceDataPanelPr
       showToast(`${trimmed} saved`);
       load();
     } catch (err: any) {
-      showToast(err?.response?.data?.detail ?? "Could not save that change.");
+      showToast(firstErrorMessage(err?.response?.data) ?? "Could not save that change.");
+    }
+  }
+
+  async function handleAdd() {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    setAdding(true);
+    try {
+      if (kind === "clients") await createSettingsClient({ name: trimmed });
+      else if (kind === "people") await createSettingsPerson({ canonical_name: trimmed });
+      else await createSettingsTeam({ name: trimmed });
+
+      setNewName("");
+      showToast(`${trimmed} added`);
+      load();
+    } catch (err: any) {
+      showToast(firstErrorMessage(err?.response?.data) ?? `Could not add that ${SINGULAR[kind]}.`);
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -73,7 +112,7 @@ export function ReferenceDataPanel({ kind, onCountChange }: ReferenceDataPanelPr
       showToast(`${row.name} ${row.is_active ? "deactivated" : "activated"}`);
       load();
     } catch (err: any) {
-      showToast(err?.response?.data?.detail ?? "Could not update that team.");
+      showToast(firstErrorMessage(err?.response?.data) ?? "Could not update that team.");
     }
   }
 
@@ -82,6 +121,21 @@ export function ReferenceDataPanel({ kind, onCountChange }: ReferenceDataPanelPr
       <div className="chead">
         <h2>{LABELS[kind]}</h2>
         <span className="scope">{rows?.length ?? "…"} records</span>
+      </div>
+      <div className="cbody" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <input
+          className="inp"
+          style={{ flex: "1 1 220px" }}
+          placeholder={PLACEHOLDER[kind]}
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleAdd();
+          }}
+        />
+        <button className="btn btn-p" onClick={handleAdd} disabled={adding || !newName.trim()}>
+          {adding ? "Adding…" : `Add ${SINGULAR[kind]}`}
+        </button>
       </div>
       <div className="tscroll tall">
         {rows === null ? (

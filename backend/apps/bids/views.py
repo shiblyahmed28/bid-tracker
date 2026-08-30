@@ -113,7 +113,9 @@ class BidViewSet(viewsets.ModelViewSet):
     filterset_class = BidFilter
     search_fields = ["client__name", "description", "tender_id", "bid_manager__canonical_name"]
     ordering_fields = ["submission_date", "published_date", "created_at", "arrival_seq", "client__name"]
-    ordering = ["arrival_seq"]
+    # Newest first by default (§18 Phase 18 item 1) — an explicit ?ordering=
+    # still overrides this in either direction.
+    ordering = ["-arrival_seq"]
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def get_permissions(self):

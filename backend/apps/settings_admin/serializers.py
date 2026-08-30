@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from apps.bids.models import Client, Person, Team
+from apps.sync.normalizers import norm_text
 
 from .capabilities import CAPABILITIES, ROLE_DEFAULT_CAPABILITIES
 from .models import (
@@ -23,6 +24,29 @@ class SettingsClientSerializer(serializers.ModelSerializer):
     def get_usage_count(self, obj):
         return obj.bids.count()
 
+    def validate_name(self, value):
+        # canonical_name is read-only here and derived below, same rule the
+        # sync's resolve_client() uses (§6/§8) — a manually created client
+        # must match sheet rows the identical way a synced one would.
+        canonical = norm_text(value)
+        if not canonical:
+            raise serializers.ValidationError("Enter a client name.")
+        existing = Client.objects.filter(canonical_name__iexact=canonical)
+        if self.instance:
+            existing = existing.exclude(pk=self.instance.pk)
+        if existing.exists():
+            raise serializers.ValidationError("A client with this name already exists.")
+        return value
+
+    def create(self, validated_data):
+        validated_data["canonical_name"] = norm_text(validated_data["name"])
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        if "name" in validated_data:
+            validated_data["canonical_name"] = norm_text(validated_data["name"])
+        return super().update(instance, validated_data)
+
 
 class SettingsPersonSerializer(serializers.ModelSerializer):
     usage_count = serializers.SerializerMethodField()
@@ -38,6 +62,20 @@ class SettingsPersonSerializer(serializers.ModelSerializer):
             + obj.engaged_bids.count()
         )
 
+    def validate_canonical_name(self, value):
+        # Same whitespace normalization and case-insensitive identity as
+        # resolve_person() (§8) — otherwise a manually added "John Doe" and a
+        # sheet-synced "john doe" would silently become two different people.
+        normalized = norm_text(value)
+        if not normalized:
+            raise serializers.ValidationError("Enter a name.")
+        existing = Person.objects.filter(canonical_name__iexact=normalized)
+        if self.instance:
+            existing = existing.exclude(pk=self.instance.pk)
+        if existing.exists():
+            raise serializers.ValidationError("A person with this name already exists.")
+        return normalized
+
 
 class SettingsTeamSerializer(serializers.ModelSerializer):
     usage_count = serializers.SerializerMethodField()
@@ -49,6 +87,17 @@ class SettingsTeamSerializer(serializers.ModelSerializer):
 
     def get_usage_count(self, obj):
         return obj.bids.count()
+
+    def validate_name(self, value):
+        trimmed = value.strip()
+        if not trimmed:
+            raise serializers.ValidationError("Enter a team name.")
+        existing = Team.objects.filter(name__iexact=trimmed)
+        if self.instance:
+            existing = existing.exclude(pk=self.instance.pk)
+        if existing.exists():
+            raise serializers.ValidationError("A team with this name already exists.")
+        return trimmed
 
 
 class ChoiceListSerializer(serializers.ModelSerializer):
